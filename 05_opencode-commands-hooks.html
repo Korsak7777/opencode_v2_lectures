@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>05. Команды и хуки в OpenCode V2: горячие фразы и перехватчики жизненного цикла</title>
+<style>
+:root{
+  --bg:#f2f4f8; --card:#ffffff; --ink:#20242c; --muted:#5b6472; --faint:#8b93a3;
+  --accent:#2f5fd7; --accent-soft:#e9eefb; --accent-ink:#24489e;
+  --org:#c96f10; --org-ink:#a35608; --org-bg:#fdf3e6; --org-br:#f0d5ab;
+  --ok:#177a3e; --ok-bg:#e5f4ea; --ok-br:#bfe3cc;
+  --sys:#8c2f44; --sys-bg:#faeef1; --sys-br:#eccdd5;
+  --border:#dde2ea; --border-soft:#e8ecf2;
+  --code-bg:#f5f7fa; --code-ink:#2a3140;
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono","Courier New",monospace;
+  --shadow:0 1px 2px rgba(30,37,52,.05),0 10px 26px -14px rgba(30,37,52,.14);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink)}
+a:hover{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.page{max-width:1000px;margin:0 auto;padding:6px 34px 90px}
+section{scroll-margin-top:70px}
+
+/* ---- sticky TOC ---- */
+.toc{position:sticky;top:0;z-index:60;background:rgba(242,244,248,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-soft)}
+.toc-inner{max-width:1000px;margin:0 auto;padding:8px 34px;display:flex;flex-wrap:wrap;gap:4px}
+.toc a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.toc a:hover{color:var(--accent-ink);background:var(--accent-soft)}
+.toc a.interact{color:var(--accent-ink);font-weight:600}
+.toc a.interact::before{content:"◉ ";font-size:10px;vertical-align:1px}
+
+/* ---- doc head ---- */
+.doc-head{background:linear-gradient(180deg,#ffffff,#fbfcfe);border:1px solid var(--border-soft);border-radius:16px;padding:30px 34px;margin:22px 0;box-shadow:var(--shadow)}
+.doc-tags{font-family:var(--mono);font-size:13px;color:var(--accent-ink);margin-bottom:10px}
+.doc-tags span{background:var(--accent-soft);border-radius:6px;padding:2px 8px;margin-right:6px;display:inline-block}
+h1{font-size:29px;line-height:1.25;margin:0 0 14px;letter-spacing:-.01em}
+.lead{font-size:16.5px;color:#333a46;margin:0}
+
+/* ---- sections / cards ---- */
+section.card{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:26px 32px;margin:22px 0;box-shadow:var(--shadow)}
+h2{font-size:23px;line-height:1.3;margin:0 0 14px;color:var(--ink)}
+h2 .sec-n{color:var(--accent)}
+h3{font-size:18.5px;margin:26px 0 8px}
+h4{font-size:15.5px;margin:18px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:6px 0}
+.small{font-size:13.5px;color:var(--muted)}
+code{font-family:var(--mono);font-size:.9em;background:#eef1f7;border:1px solid var(--border-soft);border-radius:5px;padding:1px 5px;color:#33405e}
+pre.code{background:var(--code-bg);border:1px solid var(--border-soft);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:13.4px;line-height:1.62;color:var(--code-ink);margin:14px 0}
+pre.code code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14.3px;margin:14px 0;background:#fff}
+th{background:#eef1f6;text-align:left;font-weight:600;color:#3a4353;padding:9px 12px;border:1px solid var(--border-soft)}
+td{border:1px solid var(--border-soft);padding:9px 12px;vertical-align:top}
+tbody tr:nth-child(even){background:#fafbfd}
+
+/* ---- glossary ---- */
+dl.gloss{margin:12px 0;display:grid;grid-template-columns:250px 1fr;gap:8px 18px}
+dl.gloss dt{font-weight:700;color:var(--accent-ink)}
+dl.gloss dd{margin:0;color:#333a46}
+dl.gloss dt,dl.gloss dd{padding:6px 0;border-bottom:1px dashed var(--border-soft)}
+
+/* ---- notes / badges ---- */
+.note{background:#f2f6ff;border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.8px;color:#2c3550}
+.note.warn{background:var(--org-bg);border-color:var(--org-br);border-left-color:var(--org);color:#5c430f}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:4px 13px;border-radius:99px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.badge.warn{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.badge.neutral{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.formula{font:800 14px var(--mono);text-align:center;color:var(--accent-ink);background:var(--accent-soft);border:1px solid #c6d4f2;border-radius:10px;padding:9px 12px;margin:14px 0}
+.formula small{display:block;font:600 11px var(--mono);color:var(--muted);margin-top:3px}
+
+/* ---- viz common ---- */
+.viz{border:1.5px solid #b9c9ec;border-radius:16px;background:linear-gradient(180deg,#fdfeff,#f8fafd);padding:24px 28px;margin:26px 0;box-shadow:var(--shadow);scroll-margin-top:70px}
+.viz-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#2f5fd7,#5b83e8);border-radius:6px;padding:3px 10px;margin-bottom:10px}
+.viz h3{margin:0 0 6px;font-size:20px}
+.viz-hint{font-size:14px;color:var(--muted);margin:4px 0 16px}
+.viz-note{font-size:13.5px;color:var(--muted);margin:16px 0 0;padding-top:12px;border-top:1px dashed var(--border)}
+
+/* buttons / chips */
+.btn{font:600 14px/1.2 inherit;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:9px 16px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#2750bd;color:#fff}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.chip{font-family:inherit;font-weight:600;font-size:13.5px;line-height:1.2;color:#39404d;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;cursor:pointer;transition:all .12s}
+.chip:hover{border-color:var(--accent)}
+.chip.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---- static flow diagrams ---- */
+.flow{border:1px solid var(--border-soft);border-radius:13px;background:linear-gradient(#fbfcfe,#f5f7fb);padding:20px 24px;margin:16px 0;font-size:13.8px}
+.flow-cap{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:12px}
+.fnode{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:8px 14px;text-align:center;font-weight:600;color:#333a46;max-width:460px;margin:0 auto}
+.fnode.accent{background:var(--accent-soft);border-color:#c6d4f2;color:var(--accent-ink)}
+.fnode small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.varrow{display:flex;flex-direction:column;align-items:center;padding:2px 0;color:#aab3c2}
+.varrow .vline{width:2px;height:12px;background:#c3ccda}
+.varrow .vlab{font-size:11.5px;color:var(--muted);font-weight:600;margin:1px 0}
+.flow-branch{border:1.5px dashed var(--sys-br);background:var(--sys-bg);border-radius:10px;padding:8px 16px;max-width:480px;margin:8px auto;font-size:12.8px;color:var(--sys);text-align:center;font-weight:600}
+.flow-loop{font:700 12.5px var(--mono);color:var(--accent-ink);background:var(--accent-soft);border:1.5px dashed #9db6ea;border-radius:10px;padding:8px 14px;max-width:520px;margin:12px auto 0;text-align:center}
+
+/* ---- plugin parts / mode cards ---- */
+.modes-row{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.modes-row .mode-c{flex:1;min-width:170px;border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:14px 16px}
+.mode-c .mt{font:800 15px var(--mono);color:var(--accent-ink)}
+.mode-c .md{font-size:13.5px;color:#333a46;margin-top:6px}
+.mode-c.hi{border-color:#c6d4f2;background:linear-gradient(180deg,#f6f9ff,#eef3fd)}
+.mode-c.hi .mt{color:var(--accent)}
+
+/* ---- v1 rename strip ---- */
+.v1-strip{font:700 13.5px var(--mono);color:#33405e;background:var(--code-bg);border:1px solid var(--border-soft);border-radius:10px;padding:10px 14px;margin:12px 0;text-align:center}
+.v1-strip .v1-arr{color:var(--accent);font-size:16px;margin:0 8px}
+.v1-strip small{display:block;font:600 11px var(--mono);color:var(--muted);margin-top:4px}
+
+/* ================= VIZ 2: Собери команду ================= */
+.cmd-grid{display:grid;grid-template-columns:430px 1fr;gap:16px;align-items:start}
+.cmd-left{display:flex;flex-direction:column;gap:12px}
+.cmd-panel{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:12px 14px}
+.cmd-pt{font:800 11px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px}
+.cmd-field{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:13.5px}
+.cmd-field>span{font:700 12px var(--mono);color:var(--accent-ink);min-width:118px;flex-shrink:0}
+.cmd-field input[type=text],.cmd-field select{flex:1;font:500 13px var(--mono);color:var(--ink);border:1.5px solid var(--border);border-radius:8px;padding:6px 9px;background:#fff;min-width:0}
+.cmd-field input[type=text]:focus,.cmd-field select:focus{outline:none;border-color:var(--accent)}
+.cmd-field i{font-style:normal;font-size:12px;color:var(--muted)}
+.cmd-field input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.cmd-ta{width:100%;font:500 12.5px/1.6 var(--mono);color:var(--code-ink);background:var(--code-bg);border:1.5px solid var(--border-soft);border-radius:9px;padding:9px 11px;resize:vertical;min-height:118px}
+.cmd-ta:focus{outline:none;border-color:var(--accent)}
+.cm-parse{margin-top:10px;border-top:1px dashed var(--border-soft);padding-top:9px;font-size:13.3px;color:#333a46}
+.cm-parse-line{margin:4px 0}
+.cm-parse .pl{font:700 12px var(--mono);color:var(--muted)}
+.tok{display:inline-block;font:700 12px var(--mono);background:var(--accent-soft);border:1px solid #c6d4f2;color:var(--accent-ink);border-radius:7px;padding:2px 8px;margin:2px 4px 2px 0}
+.tok.q{background:var(--org-bg);border-color:var(--org-br);color:var(--org-ink)}
+.tok.arg{background:#eef1f6;border-color:var(--border);color:#39404d}
+.cmd-right{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cp-head{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:12px 14px}
+.cp-inv{font:800 16.5px var(--mono);color:var(--accent-ink);word-break:break-all}
+.cp-file{font:600 11.5px var(--mono);color:var(--faint);margin-top:3px}
+.mchain-wrap{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:11px 14px}
+.mchain-t{font:800 11px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px}
+.mchain{display:flex;align-items:stretch;flex-wrap:wrap;row-gap:8px}
+.mc-chip{flex:1;min-width:118px;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:7px 10px;position:relative;transition:all .25s}
+.mc-lab{font:800 9.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.mc-val{font:700 12.5px var(--mono);color:#2a3140;margin-top:2px;word-break:break-all}
+.mc-tag{display:inline-block;font:800 9px var(--mono);color:var(--ok);margin-top:3px;letter-spacing:.04em}
+.mc-over{position:absolute;top:-8px;right:8px;font:800 9px var(--mono);color:var(--faint);background:#eef1f6;border-radius:99px;padding:1px 7px}
+.mc-chip.lose{opacity:.5}
+.mc-chip.win{border-color:var(--ok);background:var(--ok-bg);box-shadow:0 0 0 3px rgba(23,122,62,.13)}
+.mc-chip.win .mc-val{color:#0f5130}
+.mc-arrow{align-self:center;color:#aab3c2;font-size:15px;padding:0 4px;font-weight:800}
+.mc-cap{font-size:12.3px;color:var(--muted);margin-top:9px}
+.cmd-badges{display:flex;gap:7px;flex-wrap:wrap}
+.cmd-prev{border:1.5px solid #b9c9ec;border-radius:12px;background:linear-gradient(180deg,#fdfeff,#f6f9fe);padding:13px 15px}
+.cp-fm{background:var(--code-bg);border:1px solid var(--border-soft);border-radius:9px;padding:9px 12px;font:500 12.5px/1.6 var(--mono);color:var(--code-ink);margin:0 0 10px;white-space:pre-wrap}
+.cp-bodylab{font:800 10.5px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin:0 0 7px}
+.cp-body{font-size:14px;color:#262c38;line-height:1.75;white-space:pre-wrap}
+.ph{border-radius:6px;padding:1px 6px;font-family:var(--mono);font-size:.92em;font-weight:700}
+.ph-a{background:var(--accent-soft);color:var(--accent-ink);border:1px solid #c6d4f2}
+.ph-arg{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.ph-miss{background:#eef1f6;color:var(--faint);border:1px dashed var(--border);font-weight:600}
+.sh-block{border:1.5px solid var(--ok-br);background:var(--ok-bg);border-radius:10px;padding:8px 12px;margin:8px 0;display:inline-block;width:100%}
+.sh-cap{font:700 11.5px var(--mono);color:var(--ok);margin-bottom:5px}
+.sh-out{margin:0;font:500 12px/1.55 var(--mono);color:#1d4a30;white-space:pre-wrap}
+.fb-append{border:1.5px dashed var(--org);border-radius:10px;background:#fffdf8;padding:8px 12px;margin:9px 0 2px;display:inline-block;width:100%}
+.fb-cap{font:700 11.5px var(--mono);color:var(--org-ink);margin-bottom:4px}
+.fb-args{font:700 13px var(--mono);color:#5c430f}
+.cmd-legend{font-size:12.3px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+.cmd-legend .sw{display:inline-block;width:11px;height:11px;border-radius:4px;vertical-align:-1px;margin-right:5px}
+.sw-a{background:var(--accent-soft);border:1px solid #c6d4f2}
+.sw-arg{background:var(--org-bg);border:1px solid var(--org-br)}
+.sw-sh{background:var(--ok-bg);border:1px solid var(--ok-br)}
+.sw-fb{background:#fffdf8;border:1.5px dashed var(--org)}
+
+/* ================= VIZ 1: Путь промпта с хуками ================= */
+.hk-ctl{margin:2px 0 14px}
+.hk-splab{font-size:12.5px;color:var(--muted);font-weight:600;margin-right:-2px}
+.hk-cycle{margin-left:auto}
+.hk-cycle b{font-size:14px;color:var(--accent-ink)}
+.hk-cycle.pop{animation:hkpop .55s}
+@keyframes hkpop{0%{transform:scale(1)}40%{transform:scale(1.16);background:var(--org-bg)}100%{transform:scale(1)}}
+.hk-track{position:relative;background:linear-gradient(180deg,#fbfcfe,#f4f7fb);border:1px solid var(--border-soft);border-radius:14px;overflow:hidden}
+.hk-svg{position:absolute;inset:0;display:block;pointer-events:none}
+.hk-grid{position:relative;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:auto 46px auto 26px auto auto;column-gap:12px;padding:36px 12px 14px;z-index:1}
+.hk-node{position:relative;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:8px 6px 7px;text-align:center;cursor:pointer;transition:border-color .25s,box-shadow .25s,background .25s;min-height:58px;margin:0 15px}
+.hk-node .hk-stag{font:800 11.5px/1.25 inherit;color:#1d2f55;letter-spacing:.02em}
+.hk-node .hk-scap{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.3}
+.hk-node .hk-dom{font:800 9px var(--mono);letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px}
+.hk-node .hk-hname{font:700 11.5px var(--mono);color:#262c38;word-break:break-all;line-height:1.3}
+.hk-node.stage{background:#f2f5fb;border-color:#c9d4e8}
+.hk-node.dom-session{border-color:#c3d2ef}
+.hk-node.dom-permission{border-color:var(--org-br)}
+.hk-node.dom-tool{border-color:var(--ok-br)}
+.hk-node.dom-shell{border-color:var(--sys-br)}
+#n6a{margin-bottom:16px}
+.d-session{color:var(--accent-ink)}
+.d-permission{color:var(--org-ink)}
+.d-tool{color:var(--ok)}
+.d-shell{color:var(--sys)}
+.hk-node:hover{border-color:var(--accent)}
+.hk-node.cur{box-shadow:0 0 0 3px rgba(47,95,215,.22),0 6px 16px -8px rgba(30,37,52,.3);transform:translateY(-1px)}
+.hk-node.cur.stage{border-color:var(--accent)}
+.hk-node.cur.dom-session{border-color:var(--accent)}
+.hk-node.cur.dom-permission{border-color:var(--org);box-shadow:0 0 0 3px rgba(201,111,16,.2),0 6px 16px -8px rgba(30,37,52,.3)}
+.hk-node.cur.dom-tool{border-color:var(--ok);box-shadow:0 0 0 3px rgba(23,122,62,.2),0 6px 16px -8px rgba(30,37,52,.3)}
+.hk-node.cur.dom-shell{border-color:var(--sys);box-shadow:0 0 0 3px rgba(140,47,68,.18),0 6px 16px -8px rgba(30,37,52,.3)}
+.hk-node.done{background:#f4faf6;border-color:var(--ok-br)}
+.hk-node.done .hk-ck{display:block}
+.hk-node.stage.done{background:#f4faf6}
+.hk-ck{display:none;position:absolute;top:-8px;right:-5px;background:var(--ok);color:#fff;font:800 9.5px var(--mono);border-radius:99px;padding:1px 7px;box-shadow:var(--shadow)}
+.hk-pill{position:absolute;z-index:6;transform:translate(-50%,-50%);background:linear-gradient(90deg,#2f5fd7,#5b83e8);color:#fff;font:800 11px var(--mono);border-radius:99px;padding:5px 13px;box-shadow:0 3px 10px -2px rgba(36,72,158,.5);white-space:nowrap;transition:left .5s ease,top .5s ease;pointer-events:none}
+.hk-loopchip{grid-area:3/1;align-self:center;justify-self:center;width:94%;border:1.5px dashed #b8c2d6;border-radius:10px;padding:8px 9px;font-size:10.4px;line-height:1.45;color:var(--muted);background:rgba(255,255,255,.72);text-align:center;transition:all .3s}
+.hk-track.loopy .hk-loopchip{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft);animation:hkchip 1s infinite}
+@keyframes hkchip{50%{box-shadow:0 0 0 4px rgba(47,95,215,.13)}}
+.hk-ln{stroke:#94a3bd;stroke-width:2;fill:none}
+.hk-loop{stroke:#aeb9cf;stroke-width:2;stroke-dasharray:6 6;fill:none;transition:stroke .3s}
+.hk-loop.hot{stroke:var(--accent);animation:hkdash .9s linear infinite}
+@keyframes hkdash{to{stroke-dashoffset:-24}}
+.hk-card{border:1px solid var(--border-soft);border-radius:13px;background:#fff;padding:14px 17px;margin-top:14px;min-height:112px}
+.hk-ch{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px}
+.hk-dom-chip{font:800 10px var(--mono);letter-spacing:.04em;border-radius:6px;padding:2px 8px;background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.hk-dom-chip.d-session{background:var(--accent-soft);color:var(--accent-ink);border-color:#c6d4f2}
+.hk-dom-chip.d-permission{background:var(--org-bg);color:var(--org-ink);border-color:var(--org-br)}
+.hk-dom-chip.d-tool{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-br)}
+.hk-dom-chip.d-shell{background:var(--sys-bg);color:var(--sys);border-color:var(--sys-br)}
+.hk-hook{font:700 13.5px var(--mono);color:#262c38}
+.hk-ct{font-weight:700;font-size:14px;color:var(--ink)}
+.hk-cb{font-size:14px;color:#333a46;margin:4px 0 8px}
+.hk-rows{display:grid;grid-template-columns:96px 1fr;gap:5px 14px;font-size:13.8px;margin:8px 0}
+.hk-k{font:800 10.5px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.04em;padding-top:3px}
+.hk-v{color:#333a46}
+.hk-note{font-size:13px;color:var(--muted);border-top:1px dashed var(--border-soft);margin-top:9px;padding-top:8px}
+.hk-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.hk-minichip{font:700 11px var(--mono);border-radius:7px;padding:2px 9px;border:1px solid var(--org-br);background:#fff;color:var(--org-ink)}
+.hk-minichip.fin{border-color:#eccdd5;background:var(--sys-bg);color:var(--sys)}
+.hd-box{border:1.5px solid var(--org-br);background:var(--org-bg);border-radius:11px;padding:10px 13px;margin-top:10px}
+.hd-t{font:800 11px var(--mono);color:var(--org-ink);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hd-replay{font:700 11px inherit;color:var(--org-ink);background:#fff;border:1px solid var(--org-br);border-radius:7px;padding:2px 10px;cursor:pointer}
+.hd-replay:hover{background:#fff8ee}
+.hd-lab{font-size:12.3px;color:#5c430f;margin-bottom:7px;font-weight:600}
+.hd-cols{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:stretch}
+.hd-col>span{display:block;font:800 9.5px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.hd-col code{display:block;font:600 12px/1.55 var(--mono);background:#fff;border:1px solid var(--border-soft);border-radius:8px;padding:7px 9px;color:#2a3140;white-space:pre-wrap;word-break:break-word}
+.hd-arr{align-self:center;text-align:center;color:var(--org-ink);font-size:16px;font-weight:800}
+.hd-after{opacity:.14;transform:translateX(8px);transition:opacity .5s,transform .5s}
+.hd-box.on .hd-after{opacity:1;transform:none}
+.hd-box.on .hd-after code{border-color:var(--ok-br);background:var(--ok-bg);animation:hkflash 1.1s}
+.hd-box.on .hd-before{opacity:.55}
+.hd-before{transition:opacity .5s}
+@keyframes hkflash{0%{box-shadow:0 0 0 6px rgba(23,122,62,.35)}100%{box-shadow:0 0 0 0 rgba(23,122,62,0)}}
+
+/* ---- links ---- */
+.links ul{list-style:none;padding:0}
+.links li{padding:7px 0;border-bottom:1px dashed var(--border-soft);font-size:14.5px}
+.links li:last-child{border-bottom:none}
+.links .lnk-desc{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.ext::after{content:" ↗";font-size:12px;color:var(--faint)}
+footer{margin-top:34px;text-align:center;color:var(--faint);font-size:12.5px}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#glossary">Глоссарий</a>
+    <a href="#commands">Команды</a>
+    <a href="#viz-cmd" class="interact">Собери команду</a>
+    <a href="#hooks">Хуки в плагинах</a>
+    <a href="#domains">Домены хуков</a>
+    <a href="#viz-hooks" class="interact">Путь промпта</a>
+    <a href="#rules">Правила и V1</a>
+    <a href="#vs">Две философии</a>
+    <a href="#summary">Резюме</a>
+    <a href="#links">Ссылки</a>
+  </div>
+</nav>
+
+<main class="page">
+
+<header class="doc-head">
+  <div class="doc-tags"><span>#AI_gen</span><span>#opencode</span><span>#ai-agents</span></div>
+  <h1>05. Команды и хуки в OpenCode V2: горячие фразы и перехватчики жизненного цикла</h1>
+  <p class="lead">У V2 две главные точки расширения для того, кто хочет не просто пользоваться агентом, а обучить его своим ритмам работы. <b>Команды</b> — «горячие фразы»: повторяемый промпт один раз сохраняется в markdown и дальше вызывается по имени. <b>Хуки</b> — «перехватчики»: ваш код встраивается в этапы жизни сессии, инструментов, прав и shell-процессов. Точки связаны: команда может исполняться агентом или уйти в фоновую child-сессию (<a href="04_opencode-multiagent.md">тема заметки 04</a>), а хуки живут в плагинах — там, где <a href="02_opencode-v1-vs-v2.md">заметка 02</a> обещала «новый plugin API» (breaking change №1, наконец раскрываемый). Источники — <a href="https://opencode.ai/v2/docs/commands" target="_blank" rel="noopener" class="ext">V2 commands docs</a> и <a href="https://opencode.ai/v2/docs/build/plugins/server" target="_blank" rel="noopener" class="ext">server plugin docs</a>.</p>
+</header>
+
+<!-- ============================ ГЛОССАРИЙ ============================ -->
+<section class="card" id="glossary">
+  <h2><span class="sec-n">·</span> Мини-глоссарий</h2>
+  <dl class="gloss">
+    <dt>custom-команда</dt><dd>markdown-шаблон промпта, вызываемый слэшем: <code>.opencode/commands/&lt;name&gt;.md</code> → <code>/name</code>.</dd>
+    <dt>frontmatter</dt><dd>YAML-шапка markdown-файла с полями конфигурации; тело файла — сам шаблон.</dd>
+    <dt>shell-блок</dt><dd>конструкция вида <code>!`git diff`</code> в теле команды: вывод shell-команды вставляется в промпт до отправки модели.</dd>
+    <dt>плагин</dt><dd>npm-пакет расширения; хуки живут именно в нём.</dd>
+    <dt>домен хука</dt><dd>типизированная группа перехватчиков: <code>ctx.tool</code>, <code>ctx.session</code>, <code>ctx.permission</code>, <code>ctx.shell</code>.</dd>
+    <dt>адмиссия промпта</dt><dd>момент приёма промпта в сессию; хук <code>prompt</code> может его отредактировать.</dd>
+  </dl>
+</section>
+
+<!-- ============================ КОМАНДЫ ============================ -->
+<section class="card" id="commands">
+  <h2><span class="sec-n">·</span> Команды: markdown → /name</h2>
+  <p>Идея та же, что у агентов в <a href="04_opencode-multiagent.md">заметке 04</a>: расширение — это файл в вашем репозитории, а не строка в конфиге. Файл <code>.opencode/commands/&lt;name&gt;.md</code> превращается в команду <code>/name</code>: frontmatter — поля, тело — шаблон промпта. (Из переименований <a href="02_opencode-v1-vs-v2.md">заметки 02</a>: раздел <code>command</code>→<code>commands</code>, <code>subtask</code>→<code>subagent</code> — легаси-имя принимается.)</p>
+  <div class="formula">.opencode/commands/&lt;name&gt;.md&nbsp;&nbsp;→&nbsp;&nbsp;/name<small>frontmatter — поля конфигурации · тело файла — шаблон промпта</small></div>
+
+  <h3>Где живут команды</h3>
+  <table>
+    <thead><tr><th>Источник</th><th>Локация</th><th>Имя команды</th></tr></thead>
+    <tbody>
+      <tr><td>Проектные</td><td><code>.opencode/commands/&lt;name&gt;.md</code></td><td><code>/name</code></td></tr>
+      <tr><td>Глобальные</td><td><code>~/.config/opencode/commands/</code></td><td><code>/name</code></td></tr>
+      <tr><td>Вложенные пути</td><td>подкаталоги</td><td>вложенные имена (<code>/team/review</code>)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Поля frontmatter</h3>
+  <table>
+    <thead><tr><th>Поле</th><th>Роль</th></tr></thead>
+    <tbody>
+      <tr><td><code>description</code></td><td>описание команды</td></tr>
+      <tr><td><code>agent</code></td><td>каким агентом исполняется</td></tr>
+      <tr><td><code>model</code></td><td>модель для этой команды</td></tr>
+      <tr><td><code>subagent</code></td><td><code>true</code> — исполнение в фоновой child-сессии (ниже)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Аргументы: одна строка против позиционных</h3>
+  <p>Шаблон может подставлять аргументы двумя способами: <code>$ARGUMENTS</code> — вся строка аргументов целиком; <code>$1</code>, <code>$2</code>, … — позиционные, где <b>кавычки группируют</b> слова в один аргумент:</p>
+  <table>
+    <thead><tr><th>Вызов</th><th>$ARGUMENTS</th><th>Позиционные</th></tr></thead>
+    <tbody>
+      <tr><td><code>/review fix auth bug</code></td><td><code>fix auth bug</code></td><td><code>$1</code>=«fix», <code>$2</code>=«auth», <code>$3</code>=«bug»</td></tr>
+      <tr><td><code>/review "fix auth" bug</code></td><td><code>fix auth bug</code></td><td><code>$1</code>=«fix auth», <code>$2</code>=«bug» — кавычки сгруппировали</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Плюс <b>fallback</b>: аргументы не теряются — если шаблон их не подставляет, они дописываются в body после пустой строки. Это разбирает интерактив «Собери команду» ниже.</div>
+
+  <h3>Shell-блоки: данные до модели</h3>
+  <p>Конструкция <code>!`git diff`</code> исполняет shell-команду и вставляет её вывод в промпт <b>до</b> отправки модели — удобно подложить контекст (диф, статус, список файлов), не копируя его руками.</p>
+  <div class="note warn">⚠️ Warning из доков: shell-блоки выполняются <b>вне permission-потока</b> — разрешения не спрашиваются. Вставлять только доверенные команды; вся защита permissions из заметок 02 и 04 на этот механизм не распространяется.</div>
+
+  <h3><span class="mono">subagent: true</span>: команда в фоне</h3>
+  <p>С этим флагом команда исполняется в фоновой child-сессии, а результат возвращается родителю — прямая параллель с субагентами из <a href="04_opencode-multiagent.md">заметки 04</a>: родитель заказал работу, исполнитель отчитался.</p>
+
+  <h3>Приоритеты: источники и модель</h3>
+  <ul>
+    <li><b>Источники команд:</b> проектные перекрывают глобальные, ближние перекрывают дальние — та же логика «ближний сильнее», что у слоёв конфигурации из <a href="03_opencode-architecture-config.md">заметки 03</a>.</li>
+    <li><b>Модель:</b> команда → агент → сессия. Самое специфичное побеждает: явный <code>model</code> в frontmatter перекрывает модель агента, а та — модель сессии.</li>
+    <li><b>Hot-reload:</b> сохранение файла обновляет команду без рестарта — механика из заметки 03 распространяется и на команды.</li>
+  </ul>
+
+  <!-- ==================== ИНТЕРАКТИВ 2: СОБЕРИ КОМАНДУ ==================== -->
+  <div class="viz" id="viz-cmd">
+    <div class="viz-tag">Интерактив 2 · Команды</div>
+    <h3>Собери команду: живой предпросмотр /name</h3>
+    <p class="viz-hint">Настройте frontmatter, выберите пример вызова (пресеты — с кавычками-группировкой и без аргументов) и тело шаблона. Справа команда разворачивается в промпт на глазах: подстановки <b>$1 / $2 / $ARGUMENTS</b> подсвечены, shell-блок вставляет вывод <b>до</b> отправки модели, цепочка приоритета модели подсвечивает победителя.</p>
+
+    <div class="cmd-grid">
+      <div class="cmd-left">
+        <div class="cmd-panel">
+          <div class="cmd-pt">1 · frontmatter</div>
+          <label class="cmd-field"><span>description</span><input type="text" id="cmDesc" value="Ревью изменений с фокусом"></label>
+          <label class="cmd-field"><span>agent</span>
+            <select id="cmAgent">
+              <option value="">— не задан —</option>
+              <option value="build">build</option>
+              <option value="plan">plan</option>
+              <option value="explore">explore</option>
+            </select>
+          </label>
+          <label class="cmd-field"><span>model</span>
+            <select id="cmModel">
+              <option value="">— не задан —</option>
+              <option value="glm-5.3">glm-5.3</option>
+              <option value="glm-5.3-flash">glm-5.3-flash</option>
+            </select>
+          </label>
+          <label class="cmd-field"><span>subagent</span><input type="checkbox" id="cmSub"><i>true — исполнение в фоновой child-сессии</i></label>
+        </div>
+
+        <div class="cmd-panel">
+          <div class="cmd-pt">2 · вызов: примеры аргументов</div>
+          <div class="chip-row" id="cmCalls">
+            <button class="chip active" data-c="0">/review fix auth bug</button>
+            <button class="chip" data-c="1">/review "fix auth" bug</button>
+            <button class="chip" data-c="2">/review fix "auth bug"</button>
+            <button class="chip" data-c="3">/review — без аргументов</button>
+          </div>
+          <div class="cm-parse" id="cmParse"></div>
+        </div>
+
+        <div class="cmd-panel">
+          <div class="cmd-pt">3 · тело команды (шаблон)</div>
+          <div class="chip-row" id="cmBodies" style="margin-bottom:10px">
+            <button class="chip active" data-b="0">с $1 / $2 / $ARGUMENTS</button>
+            <button class="chip" data-b="1">без подстановок</button>
+          </div>
+          <label class="cmd-field"><span>shell-блок <code>!`git status`</code></span><input type="checkbox" id="cmShell" checked><i>вывод — в промпт до модели</i></label>
+          <textarea id="cmBody" class="cmd-ta" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <div class="cmd-right">
+        <div class="cp-head">
+          <div class="cp-inv" id="cpInv">/review fix auth bug</div>
+          <div class="cp-file">.opencode/commands/review.md → /review · frontmatter + тело разворачиваются ниже</div>
+        </div>
+
+        <div class="mchain-wrap">
+          <div class="mchain-t">приоритет модели: команда → агент → сессия</div>
+          <div class="mchain" id="cmChain"></div>
+          <div class="mc-cap">Самое специфичное побеждает: явный <span class="mono">model</span> в frontmatter перекрывает модель агента, а та — модель сессии. Названия моделей — демо-значения.</div>
+        </div>
+
+        <div class="cmd-badges" id="cmBadges"></div>
+
+        <div class="cmd-prev">
+          <pre class="cp-fm" id="cpFm"></pre>
+          <div class="cp-bodylab">тело команды разворачивается в промпт:</div>
+          <div class="cp-body" id="cpBody"></div>
+        </div>
+
+        <div class="cmd-legend">
+          <span><span class="sw sw-a"></span>$1 / $2 — позиционные</span>
+          <span><span class="sw sw-arg"></span>$ARGUMENTS — вся строка</span>
+          <span><span class="sw sw-sh"></span>вывод shell-блока (до модели)</span>
+          <span><span class="sw sw-fb"></span>fallback-дописывание</span>
+          <span><span class="ph ph-miss">∅</span> — пустая подстановка</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="note warn" style="margin-top:16px">⚠️ Shell-блоки выполняются <b>вне permission-потока</b> — разрешения не спрашиваются. Вставляйте только доверенные команды; защита permissions из заметок 02 и 04 на этот механизм не распространяется.</div>
+    <p class="viz-note">Механика — из заметки: поля frontmatter, разбор аргументов (кавычки группируют), fallback-дописывание после пустой строки, вставка shell-вывода до отправки модели, <span class="mono">subagent: true</span>, приоритет «команда → агент → сессия». Команда <span class="mono">/review</span>, модели и вывод <span class="mono">git status</span> — демо-значения.</p>
+  </div>
+</section>
+
+<!-- ============================ ХУКИ: ПЛАГИНЫ ============================ -->
+<section class="card" id="hooks">
+  <h2><span class="sec-n">·</span> Хуки: перехватчики жизненного цикла</h2>
+
+  <h3>Хуки живут в плагинах</h3>
+  <p>В V2 хук невозможно описать строкой конфига — он живёт в <b>плагине</b>. Плагин — это один npm-пакет (<a href="https://opencode.ai/v2/docs/build/plugins" target="_blank" rel="noopener" class="ext">plugins overview</a>), до четырёх частей:</p>
+  <div class="modes-row">
+    <div class="mode-c hi"><div class="mt">Server</div><div class="md">инструменты, <b>хуки</b>, интеграции, команды, агенты</div></div>
+    <div class="mode-c"><div class="mt">TUI</div><div class="md">терминальный интерфейс</div></div>
+    <div class="mode-c"><div class="mt">GUI</div><div class="md">desktop</div></div>
+    <div class="mode-c"><div class="mt">RPC</div><div class="md">типизированный контракт</div></div>
+  </div>
+  <p>SDK — один пакет <code>@opencode/plugin</code>; плагины автозагружаются из <code>.opencode/plugins/</code>. Заметьте: Server-часть плагина может привозить не только хуки, но и команды, и агентов.</p>
+</section>
+
+<!-- ============================ ХУКИ: ДОМЕНЫ ============================ -->
+<section class="card" id="domains">
+  <h2><span class="sec-n">·</span> Домены хуков</h2>
+  <p>Регистрация — на типизированных доменах, не строками. Путь промпта через систему с точками перехвата:</p>
+
+  <div class="flow">
+    <div class="flow-cap">Путь промпта через систему (схема из заметки)</div>
+    <div class="fnode">промпт пользователя</div>
+    <div class="varrow"><span class="vlab">ctx.session.hook: prompt</span><span class="vline"></span></div>
+    <div class="fnode">адмиссия промпта<small>хук может отредактировать</small></div>
+    <div class="varrow"><span class="vlab">ctx.session.hook: context / generate / …</span><span class="vline"></span></div>
+    <div class="fnode accent">МОДЕЛЬНЫЙ ВЫЗОВ (сессия)</div>
+    <div class="varrow"><span class="vlab">ctx.permission.hook: evaluate</span><span class="vline"></span></div>
+    <div class="fnode">разрешения: пересмотр allow/ask<small>явный deny финален</small></div>
+    <div class="varrow"><span class="vlab">ctx.tool.hook: execute.before</span><span class="vline"></span></div>
+    <div class="fnode">ИНСТРУМЕНТ<small>input можно инспектировать или подменить</small></div>
+    <div class="flow-branch">если это shell-инструмент: ctx.shell.hook: create.before (команда / cwd / timeout / shell / env) → запуск shell-команды</div>
+    <div class="varrow"><span class="vlab">ctx.tool.hook: execute.after</span><span class="vline"></span></div>
+    <div class="fnode">результат / ошибка</div>
+    <div class="flow-loop">петля возврата: результат → модель, следующий виток цикла · на каждом витке — context-хук</div>
+  </div>
+
+  <p>Полная карта доменов и сценариев:</p>
+  <table>
+    <thead><tr><th>Домен</th><th>Хук</th><th>Что перехватывает / типичный сценарий</th></tr></thead>
+    <tbody>
+      <tr><td><code>ctx.tool</code></td><td><code>execute.before</code></td><td>input инструмента до выполнения — инспекция или подмена</td></tr>
+      <tr><td></td><td><code>execute.after</code></td><td>результат или ошибка — аудит, постобработка</td></tr>
+      <tr><td><code>ctx.session</code></td><td><code>prompt</code></td><td>редакция промпта при адмиссии</td></tr>
+      <tr><td></td><td><code>context</code> / <code>compaction</code> / <code>generate</code> / <code>title</code></td><td>разные типы модельных вызовов: system / tools / options</td></tr>
+      <tr><td></td><td><code>model.request</code></td><td>заголовки запроса к модели</td></tr>
+      <tr><td></td><td><code>http.request</code> / <code>http.response</code></td><td>нативный HTTP</td></tr>
+      <tr><td></td><td><code>experimental.ws.handshake</code> / <code>send</code> / <code>receive</code></td><td>экспериментальные websocket-хуки</td></tr>
+      <tr><td></td><td><code>retry</code></td><td>политика повторов</td></tr>
+      <tr><td><code>ctx.permission</code></td><td><code>evaluate</code></td><td>пересмотр allow/ask после применения правил; явный deny финален</td></tr>
+      <tr><td><code>ctx.shell</code></td><td><code>create.before</code></td><td>правка команды, cwd, timeout, shell (исполняемого), env перед запуском</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ==================== ИНТЕРАКТИВ 1: ПУТЬ ПРОМПТА С ХУКАМИ ==================== -->
+  <div class="viz" id="viz-hooks">
+    <div class="viz-tag">Интерактив 1 · Хуки</div>
+    <h3>Путь промпта с хуками: анимированный конвейер</h3>
+    <p class="viz-hint">Нажмите «Запуск» — «пилюля промпта» поедет по конвейеру. Каждая станция с цветным ярлыком домена — точка перехвата: карточка под схемой покажет, <b>что хук видит</b> и <b>что может изменить</b>. На трёх станциях (<span class="mono">prompt</span>, <span class="mono">execute.before</span>, <span class="mono">create.before</span>) хук правит демо-значение прямо на глазах: «до → после». После «Результата» каретка возвращается к модельному вызову — счётчик витков растёт. Клик по станции — переход к ней.</p>
+
+    <div class="hk-ctl btn-row">
+      <button class="btn btn-primary btn-sm" id="hkPlay">▶ Запуск</button>
+      <button class="btn btn-sm" id="hkStep">Шаг →</button>
+      <button class="btn btn-sm" id="hkReset">Сброс</button>
+      <span class="hk-splab">скорость:</span>
+      <span class="chip-row" id="hkSpeed">
+        <button class="chip active" data-s="1">1×</button>
+        <button class="chip" data-s="0.55">0.5×</button>
+        <button class="chip" data-s="2">2×</button>
+      </span>
+      <span class="badge neutral hk-cycle" id="hkCycleB">виток цикла: <b id="hkCycle">1</b></span>
+    </div>
+
+    <div class="hk-track" id="hkTrack">
+      <svg class="hk-svg" id="hkSvg"></svg>
+      <div class="hk-grid" id="hkGrid">
+        <div class="hk-node stage" id="n0" style="grid-area:1/1"><span class="hk-ck">✓</span><div class="hk-stag">ПРОМПТ</div><div class="hk-scap">пользователя</div></div>
+        <div class="hk-node dom-session" id="n1" style="grid-area:1/2"><span class="hk-ck">✓</span><div class="hk-dom d-session">ctx.session</div><div class="hk-hname">prompt</div><div class="hk-scap">адмиссия промпта</div></div>
+        <div class="hk-node dom-session" id="n2" style="grid-area:1/3"><span class="hk-ck">✓</span><div class="hk-dom d-session">ctx.session</div><div class="hk-hname">context / generate</div><div class="hk-scap">типы модельных вызовов</div></div>
+        <div class="hk-node stage" id="n3" style="grid-area:1/4"><span class="hk-ck">✓</span><div class="hk-stag">МОДЕЛЬНЫЙ ВЫЗОВ</div><div class="hk-scap">сессия</div></div>
+        <div class="hk-node dom-permission" id="n4" style="grid-area:1/5"><span class="hk-ck">✓</span><div class="hk-dom d-permission">ctx.permission</div><div class="hk-hname">evaluate</div><div class="hk-scap">пересмотр allow / ask</div></div>
+        <div class="hk-loopchip" id="hkLoopChip">↻ петля возврата: результат → модель · на каждом витке — context-хук</div>
+        <div class="hk-node stage" id="n8" style="grid-area:3/2"><span class="hk-ck">✓</span><div class="hk-stag">РЕЗУЛЬТАТ</div><div class="hk-scap">→ возврат к модели</div></div>
+        <div class="hk-node dom-tool" id="n7" style="grid-area:3/3"><span class="hk-ck">✓</span><div class="hk-dom d-tool">ctx.tool</div><div class="hk-hname">execute.after</div><div class="hk-scap">результат / ошибка</div></div>
+        <div class="hk-node stage" id="n6" style="grid-area:3/4"><span class="hk-ck">✓</span><div class="hk-stag">ИНСТРУМЕНТ</div><div class="hk-scap">shell-инструмент → ветка ↓</div></div>
+        <div class="hk-node dom-tool" id="n5" style="grid-area:3/5"><span class="hk-ck">✓</span><div class="hk-dom d-tool">ctx.tool</div><div class="hk-hname">execute.before</div><div class="hk-scap">до выполнения</div></div>
+        <div class="hk-node dom-shell" id="n6a" style="grid-area:5/4"><span class="hk-ck">✓</span><div class="hk-dom d-shell">ctx.shell</div><div class="hk-hname">create.before</div><div class="hk-scap">перед запуском команды</div></div>
+        <div class="hk-node stage" id="n6b" style="grid-area:6/4"><span class="hk-ck">✓</span><div class="hk-stag">ЗАПУСК КОМАНДЫ</div><div class="hk-scap">shell-процесс</div></div>
+      </div>
+      <div class="hk-pill" id="hkPill">промпт ▸</div>
+    </div>
+
+    <div class="hk-card" id="hkCard"></div>
+
+    <p class="viz-note">Механика перехватов — из заметки: домены, что хук видит / может изменить, финальность явного deny, ветка shell-инструмента, петля возврата с context-хуком на каждом витке. Демо-значения (тексты промпта, параметры <span class="mono">npm test</span>, пути) — иллюстративные. Несколько плагинов на одном хуке выполняются в порядке регистрации; изменения касаются только текущего вызова.</p>
+  </div>
+</section>
+
+<!-- ============================ ПРАВИЛА И V1 ============================ -->
+<section class="card" id="rules">
+  <h2><span class="sec-n">·</span> Правила выполнения и наследие V1</h2>
+  <ul>
+    <li>несколько плагинов на одном хуке выполняются <b>в порядке регистрации</b>;</li>
+    <li>изменения, сделанные хуком, касаются <b>только текущего вызова</b> — ничего постоянного.</li>
+  </ul>
+  <p>Пара <code>tool.execute.before</code> / <code>tool.execute.after</code> из V1 не исчезла — стала парой <code>execute.before</code> / <code>execute.after</code> на домене <code>ctx.tool</code>:</p>
+  <div class="v1-strip">tool.execute.before / tool.execute.after<span class="v1-arr">→</span>ctx.tool · execute.before / execute.after<small>V1-имена встречаются только внутри V1-совместимого server()-экспорта — тот самый dual-support из заметки 02, позволяющий одному пакету работать в обоих мирах</small></div>
+</section>
+
+<!-- ============================ ДВЕ ФИЛОСОФИИ ============================ -->
+<section class="card" id="vs">
+  <h2><span class="sec-n">·</span> Две философии: OpenCode V2 vs Claude Code</h2>
+  <p>Аудитория доклада знает Claude Code — там тоже есть хуки, но философия другая (<a href="https://code.claude.com/docs/en/hooks" target="_blank" rel="noopener" class="ext">Claude Code hooks reference</a>):</p>
+  <table>
+    <thead><tr><th></th><th>Claude Code</th><th>OpenCode V2</th></tr></thead>
+    <tbody>
+      <tr><td><b>Что такое хук</b></td><td>событие жизненного цикла: <code>PreToolUse</code>, <code>PostToolUse</code>, <code>UserPromptSubmit</code>, <code>Stop</code>, <code>PermissionRequest</code>, …</td><td>TypeScript-API на типизированных доменах внутри плагина</td></tr>
+      <tr><td><b>Как настраивается</b></td><td>классически — shell-команда в JSON-настройках; сейчас есть и другие типы обработчиков (HTTP-эндпоинты, MCP-вызовы, LLM-промпты, субагенты)</td><td>код плагина (npm-пакет, SDK <code>@opencode/plugin</code>)</td></tr>
+      <tr><td><b>Философия</b></td><td>декларативный shell-обход: «на событие X запусти команду Y»</td><td>программный API: типы, домены, композиция логики</td></tr>
+    </tbody>
+  </table>
+  <p>Практическая разница: shell-команда легко пишется и так же легко разрастается в скрипты-«костыли»; плагин требует npm-окружения, зато даёт типизированный контракт и естественную эволюцию до инструментов и агентов.</p>
+</section>
+
+<!-- ============================ РЕЗЮМЕ ============================ -->
+<section class="card" id="summary">
+  <h2><span class="sec-n">·</span> Команды и хуки одним взглядом</h2>
+  <table>
+    <thead><tr><th>Вопрос</th><th>Ответ</th></tr></thead>
+    <tbody>
+      <tr><td>Что такое команда</td><td>markdown-шаблон промпта: <code>.opencode/commands/&lt;name&gt;.md</code> → <code>/name</code></td></tr>
+      <tr><td>Frontmatter команды</td><td><code>description</code>, <code>agent</code>, <code>model</code>, <code>subagent</code></td></tr>
+      <tr><td>Аргументы</td><td><code>$ARGUMENTS</code> — вся строка; <code>$1</code>/<code>$2</code>… — позиционные (кавычки группируют); fallback — дописывание после пустой строки</td></tr>
+      <tr><td>Shell-блок</td><td><code>!`cmd`</code> — вывод в промпт до модели; ⚠️ вне permission-потока</td></tr>
+      <tr><td>Фоновое исполнение</td><td><code>subagent: true</code> — child-сессия, результат возвращается родителю</td></tr>
+      <tr><td>Приоритет модели</td><td>команда → агент → сессия</td></tr>
+      <tr><td>Приоритет источников</td><td>проектные &gt; глобальные, ближние &gt; дальние; hot-reload без рестарта</td></tr>
+      <tr><td>Где живут хуки</td><td>в плагинах (Server-часть npm-пакета), автозагрузка из <code>.opencode/plugins/</code></td></tr>
+      <tr><td>Домены</td><td><code>ctx.tool</code> / <code>ctx.session</code> / <code>ctx.permission</code> / <code>ctx.shell</code></td></tr>
+      <tr><td>Порядок и область</td><td>хуки нескольких плагинов — по порядку регистрации; изменения — только текущий вызов</td></tr>
+      <tr><td>Наследие V1</td><td><code>tool.execute.before/after</code> → <code>execute.before/after</code>; V1-имена только в <code>server()</code>-экспорте</td></tr>
+      <tr><td>vs Claude Code</td><td>события + shell-команды в настройках ↔ типизированный TypeScript-API в плагине</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================ ССЫЛКИ ============================ -->
+<section class="card links" id="links">
+  <h2><span class="sec-n">·</span> Ссылки</h2>
+  <h3>Внутренние</h3>
+  <ul>
+    <li><a href="02_opencode-v1-vs-v2.md">02. OpenCode v1 vs V2</a><span class="lnk-desc">переименования <span class="mono">command</span>→<span class="mono">commands</span> и <span class="mono">subtask</span>→<span class="mono">subagent</span>, breaking change №1 (plugin API) и dual-support — фундамент, на котором стоят хуки этой заметки.</span></li>
+    <li><a href="03_opencode-architecture-config.md">03. Установка и настройка OpenCode V2</a><span class="lnk-desc">hot-reload и приоритеты слоёв: почему команды и плагины обновляются без рестарта и какой источник команды победит.</span></li>
+    <li><a href="04_opencode-multiagent.md">04. Мультиагенты в OpenCode V2</a><span class="lnk-desc">агенты и Selection: команды исполняются агентами (<span class="mono">agent</span>), уходят в child-сессии (<span class="mono">subagent: true</span>), а Server-часть плагина может привозить агентов сама.</span></li>
+    <li><a href="05_opencode-commands-hooks.md">05. Исходная заметка (Markdown)</a><span class="lnk-desc">первоисточник этой HTML-версии: команды и хуки в OpenCode V2.</span></li>
+  </ul>
+  <h3>Внешние</h3>
+  <ul>
+    <li><a href="https://opencode.ai/v2/docs/commands" target="_blank" rel="noopener" class="ext">Команды в OpenCode V2</a><span class="lnk-desc">главный источник по командам: локации, frontmatter, аргументы, shell-блоки и warning про permission-поток.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/build/plugins" target="_blank" rel="noopener" class="ext">Плагины OpenCode V2 (обзор)</a><span class="lnk-desc">структура плагина из четырёх частей, SDK <span class="mono">@opencode/plugin</span>, автозагрузка.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/build/plugins/server" target="_blank" rel="noopener" class="ext">Server-плагины и хуки</a><span class="lnk-desc">актуальный список хуков по доменам, правила выполнения, раздел «Support V1».</span></li>
+    <li><a href="https://code.claude.com/docs/en/hooks" target="_blank" rel="noopener" class="ext">Claude Code: hooks reference</a><span class="lnk-desc">сравнение философий: события жизненного цикла и shell-команды.</span></li>
+  </ul>
+</section>
+
+<footer>
+  HTML-версия материала <a class="mono" href="05_opencode-commands-hooks.md">llm_harness/opencode_v2/05_opencode-commands-hooks.md</a> · автономная страница со встроенными интерактивами · работает офлайн
+</footer>
+
+</main>
+
+<script>
+(function(){
+"use strict";
+
+/* ================================================================
+   ИНТЕРАКТИВ 2 · Собери команду: живой предпросмотр /name
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+  var CALLS=[
+    {disp:"/review fix auth bug",args:"fix auth bug",toks:["fix","auth","bug"]},
+    {disp:'/review "fix auth" bug',args:"fix auth bug",toks:["fix auth","bug"]},
+    {disp:'/review fix "auth bug"',args:"fix auth bug",toks:["fix","auth bug"]},
+    {disp:"/review",args:"",toks:[]}
+  ];
+  var AGM={build:"glm-5.3",plan:"glm-5.3",explore:"glm-5.3-flash"};
+  var SESSION_MODEL="glm-5.3";
+  var SHELL_OUT="On branch main\nChanges not staged for commit:\n  modified:   src/auth/login.ts\n  modified:   src/session.ts";
+  var BODIES=[
+    "Проведи ревью кода для: $1\nОсобое внимание — $2.\nПолная постановка: $ARGUMENTS\n\n!`git status`",
+    "Проведи ревью незакоммиченных изменений.\nОтвет — списком замечаний по серьёзности."
+  ];
+  var SHELL_RE=/^!`.*`$/m;
+
+  var CM={call:0,desc:$("cmDesc").value,agent:"",model:"",sub:false,body:BODIES[0]};
+
+  function hasGrouped(c){return c.toks.some(function(t){return t.indexOf(" ")>-1;});}
+  function parseHtml(){
+    var c=CALLS[CM.call];
+    if(!c.toks.length){
+      return '<div class="cm-parse-line">Аргументов нет: подстановки пустые, дописывать нечего — fallback не срабатывает (нет аргументов).</div>';
+    }
+    var toks=c.toks.map(function(t,i){
+      return '<span class="tok'+(t.indexOf(" ")>-1?" q":"")+'">$'+(i+1)+' = '+esc(t)+'</span>';
+    }).join(" ");
+    var h='<div class="cm-parse-line"><span class="pl">$ARGUMENTS</span> = <span class="tok arg">«'+esc(c.args)+'»</span> — вся строка целиком</div>';
+    h+='<div class="cm-parse-line"><span class="pl">позиционные:</span> '+toks+'</div>';
+    if(hasGrouped(c))h+='<div class="cm-parse-line small">оранжевые токены — кавычки сгруппировали слова в один аргумент</div>';
+    return h;
+  }
+  function ph(cls,v){return '<span class="ph '+cls+'">'+v+'</span>';}
+
+  function bodyRender(){
+    var c=CALLS[CM.call],lines=CM.body.split("\n"),out=[],hasPh=false;
+    lines.forEach(function(ln){
+      var m=ln.match(/^!`(.*)`$/);
+      if(m){
+        out.push('<div class="sh-block"><div class="sh-cap">▸ shell-блок: вывод '+ph("ph-arg","!`"+esc(m[1])+"`")+' вставлен в промпт ДО отправки модели</div><pre class="sh-out">'+esc(SHELL_OUT)+'</pre></div>');
+        return;
+      }
+      out.push(esc(ln).replace(/\$(ARGUMENTS|\d+)/g,function(_,g){
+        hasPh=true;
+        if(g==="ARGUMENTS")return c.args?ph("ph-arg",esc(c.args)):ph("ph-miss","∅");
+        var v=c.toks[+g-1];
+        return v!=null?ph("ph-a",esc(v)):ph("ph-miss","∅");
+      }));
+    });
+    var html=out.join("\n");
+    if(!hasPh&&c.args){
+      html+="\n"+'<div class="fb-append"><div class="fb-cap">fallback — аргументы не потерялись: дописаны после пустой строки</div><div class="fb-args">'+esc(c.args)+'</div></div>';
+    }
+    return {html:html,shell:SHELL_RE.test(CM.body)};
+  }
+  function fmRender(){
+    var L=[];
+    if(CM.desc)L.push("description: "+CM.desc);
+    if(CM.agent)L.push("agent: "+CM.agent);
+    if(CM.model)L.push("model: "+CM.model);
+    if(CM.sub)L.push("subagent: true");
+    return "---\n"+(L.length?esc(L.join("\n")):"# поля не заданы (демо)")+"\n---";
+  }
+  function chainRender(){
+    var m1=CM.model,m2=CM.agent?AGM[CM.agent]:"",m3=SESSION_MODEL;
+    var win=m1?1:(m2?2:3);
+    function chip(n,lab,val){
+      var cls="mc-chip "+(n===win?"win":"lose");
+      return '<div class="'+cls+'"><div class="mc-lab">'+lab+'</div><div class="mc-val">'+(val||"—")+'</div>'
+        +(n===win?'<div class="mc-tag">✓ ПОБЕДИЛА</div>':'<span class="mc-over">перекрыта</span>')+'</div>';
+    }
+    return chip(1,"команда",esc(m1))
+      +'<div class="mc-arrow">→</div>'
+      +chip(2,"агент"+(CM.agent?" · "+esc(CM.agent):""),esc(m2))
+      +'<div class="mc-arrow">→</div>'
+      +chip(3,"сессия",esc(m3));
+  }
+  function badgesRender(shell){
+    var b=[];
+    b.push('<span class="badge neutral">агент-исполнитель: '+(CM.agent?esc(CM.agent):"не задан")+'</span>');
+    if(CM.sub)b.push('<span class="badge warn">subagent: true — фоновая child-сессия · результат → родителю</span>');
+    if(shell)b.push('<span class="badge ok">shell-блок: вывод встаёт в промпт до отправки модели</span>');
+    return b.join("");
+  }
+  function renderAll(){
+    var c=CALLS[CM.call],b=bodyRender();
+    $("cpInv").textContent=c.disp;
+    $("cmParse").innerHTML=parseHtml();
+    $("cpFm").textContent=fmRender();
+    $("cpBody").innerHTML=b.html;
+    $("cmChain").innerHTML=chainRender();
+    $("cmBadges").innerHTML=badgesRender(b.shell);
+  }
+
+  /* ---- события ---- */
+  $("cmDesc").addEventListener("input",function(){CM.desc=this.value;renderAll();});
+  $("cmAgent").addEventListener("change",function(){CM.agent=this.value;renderAll();});
+  $("cmModel").addEventListener("change",function(){CM.model=this.value;renderAll();});
+  $("cmSub").addEventListener("change",function(){CM.sub=this.checked;renderAll();});
+  Array.prototype.forEach.call(document.querySelectorAll("#cmCalls .chip"),function(ch){
+    ch.addEventListener("click",function(){
+      CM.call=+ch.getAttribute("data-c");
+      Array.prototype.forEach.call(document.querySelectorAll("#cmCalls .chip"),function(x){x.classList.toggle("active",x===ch);});
+      renderAll();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#cmBodies .chip"),function(ch){
+    ch.addEventListener("click",function(){
+      CM.body=BODIES[+ch.getAttribute("data-b")];
+      if(!$("cmShell").checked)CM.body=CM.body.replace(/\n*!`.*`$/m,"").replace(/\s+$/,"");
+      $("cmBody").value=CM.body;
+      $("cmShell").checked=SHELL_RE.test(CM.body);
+      Array.prototype.forEach.call(document.querySelectorAll("#cmBodies .chip"),function(x){x.classList.toggle("active",x===ch);});
+      renderAll();
+    });
+  });
+  $("cmShell").addEventListener("change",function(){
+    var v=$("cmBody").value;
+    if(this.checked){if(!SHELL_RE.test(v))v=v.replace(/\s+$/,"")+"\n\n!`git status`";}
+    else{v=v.replace(/\n*!`.*`$/m,"").replace(/\s+$/,"");}
+    $("cmBody").value=v;CM.body=v;renderAll();
+  });
+  $("cmBody").addEventListener("input",function(){
+    CM.body=this.value;
+    $("cmShell").checked=SHELL_RE.test(CM.body);
+    renderAll();
+  });
+
+  $("cmBody").value=CM.body;
+  renderAll();
+})();
+
+/* ================================================================
+   ИНТЕРАКТИВ 1 · Путь промпта с хуками: анимированный конвейер
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+
+  var ORDER=["n0","n1","n2","n3","n4","n5","n6","n6a","n6b","n7","n8"];
+  var LOOP_TO="n3";
+
+  var CARD={
+    n0:{type:"stage",title:"Промпт пользователя",
+      body:'Пользователь отправил промпт — например, вызвал команду <span class="mono">/review</span>. Сессия принимает его в работу; момент приёма — <b>адмиссия</b>. Точки перехвата здесь нет: старт конвейера.'},
+    n1:{type:"hook",dom:"ctx.session",hook:"prompt",title:"адмиссия промпта",
+      d:"Момент приёма промпта в сессию — хук встаёт именно здесь, до всего остального.",
+      see:"промпт, входящий в сессию",
+      can:"<b>отредактировать промпт</b> — дальше по конвейеру пойдёт отредактированная версия",
+      demo:{lab:"хук правит текст промпта",before:"почини авторизацию",after:"почини авторизацию: сначала найди причину и покажи план, потом правь"}},
+    n2:{type:"hook",dom:"ctx.session",hook:"context / generate / …",title:"типы модельных вызовов",
+      d:"Разные типы модельных вызовов — у каждого свой хук: context, compaction, generate, title.",
+      see:"параметры вызова: system / tools / options",
+      can:"настроить вызов под его тип",
+      note:"Срабатывает на <b>каждом витке</b> агентного цикла — не только на первом."},
+    n3:{type:"stage",title:"Модельный вызов",
+      body:"Модель читает контекст сессии и решает: ответить пользователю или вызвать инструмент. Сердце агентного цикла.",
+      note:'Рядом точка <span class="mono">ctx.session.hook: model.request</span> — заголовки запроса к модели.'},
+    n4:{type:"hook",dom:"ctx.permission",hook:"evaluate",title:"пересмотр разрешений",
+      d:"Permissions уже применили свои правила — хук видит итог и может его изменить.",
+      see:"решение permission-правил: allow / ask",
+      can:"пересмотреть allow/ask после применения правил; явный <b>deny финален</b>",
+      chips:["ask → allow","deny — финален"]},
+    n5:{type:"hook",dom:"ctx.tool",hook:"execute.before",title:"до выполнения инструмента",
+      d:"Инструмент ещё не запускался: хук видит его входные данные целиком.",
+      see:"input инструмента до выполнения",
+      can:"<b>инспектировать</b> input или <b>подменить</b> его",
+      demo:{lab:"хук подменяет input инструмента bash",before:'{ "command": "npm test" }',after:'{ "command": "npm test -- --ci" }'}},
+    n6:{type:"stage",title:"Инструмент",
+      body:'Выполнение инструмента. Наш демо-инструмент — shell (bash): у shell-инструментов есть своя ветка перехвата — вниз к <span class="mono">create.before</span> и запуску команды. Не-shell инструменты эту ветку пропускают и идут сразу к <span class="mono">execute.after</span>.'},
+    n6a:{type:"hook",dom:"ctx.shell",hook:"create.before",title:"перед запуском shell",
+      d:"Shell-процесс ещё не создан — хук видит все его будущие параметры.",
+      see:"команда, cwd, timeout, shell (исполняемое), env",
+      can:"исправить любой из параметров до запуска",
+      demo:{lab:"хук правит параметры shell-запуска",before:"command: npm test\ncwd:      .",after:"command: npm test -- --ci\ncwd:      ./server\ntimeout: 120000\nshell:   bash"}},
+    n6b:{type:"stage",title:"Запуск команды",
+      body:"Shell-команда запущена — с параметрами после (возможной) правки хука create.before. Это не точка перехвата: просто выполнение."},
+    n7:{type:"hook",dom:"ctx.tool",hook:"execute.after",title:"после выполнения",
+      d:"Инструмент отработал — хук видит, чем именно закончилась работа.",
+      see:"результат или ошибку инструмента",
+      can:"аудит, постобработка результата"},
+    n8:{type:"stage",title:"Результат",
+      body:'Результат возвращается модели: она ответит пользователю или вызовет следующий инструмент. Каретка сейчас полетит обратно к модельному вызову — <b>новый виток агентного цикла</b>.',
+      note:"Петля возврата: результат → модель; на каждом витке — context-хук."}
+  };
+
+  var pos=0,playing=false,speed=1,cycle=1,gen=0,timers=[];
+  function later(ms,fn){var g=gen;var t=setTimeout(function(){if(g===gen)fn();},ms);timers.push(t);}
+  function clearTimers(){gen++;timers.forEach(clearTimeout);timers=[];}
+  function el(id){return document.getElementById(id);}
+  function domCls(dom){return dom==="ctx.session"?"d-session":dom==="ctx.permission"?"d-permission":dom==="ctx.tool"?"d-tool":dom==="ctx.shell"?"d-shell":"";}
+
+  /* ---------- SVG-коннекторы ---------- */
+  function draw(){
+    var svg=$("hkSvg"),track=$("hkTrack");
+    var W=track.clientWidth,H=track.clientHeight;
+    svg.setAttribute("viewBox","0 0 "+W+" "+H);
+    svg.setAttribute("width",W);svg.setAttribute("height",H);
+    function C(id){var e=el(id);return{x:e.offsetLeft+e.offsetWidth/2,y:e.offsetTop+e.offsetHeight/2,l:e.offsetLeft,t:e.offsetTop,r:e.offsetLeft+e.offsetWidth,b:e.offsetTop+e.offsetHeight};}
+    var s='<defs>'
+      +'<marker id="hkA" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#8fa0ba"/></marker>'
+      +'<marker id="hkAA" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#2f5fd7"/></marker>'
+      +'</defs>';
+    function hl(a,b){var A=C(a),B=C(b),y=(A.t+A.b)/2,x1,x2;
+      if(A.x<B.x){x1=A.r+3;x2=B.l-5;}else{x1=A.l-3;x2=B.r+5;}
+      return '<line class="hk-ln" x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" marker-end="url(#hkA)"/>';}
+    function vl(a,b){var A=C(a),B=C(b),x=(A.l+A.r)/2;
+      return '<line class="hk-ln" x1="'+x+'" y1="'+(A.b+3)+'" x2="'+x+'" y2="'+(B.t-5)+'" marker-end="url(#hkA)"/>';}
+    s+=hl("n0","n1")+hl("n1","n2")+hl("n2","n3")+hl("n3","n4");
+    s+=vl("n4","n5");
+    s+=hl("n5","n6")+hl("n6","n7")+hl("n7","n8");
+    s+=vl("n6","n6a")+vl("n6a","n6b");
+    var A=C("n6b"),B=C("n7"),ay=(A.t+A.b)/2;
+    s+='<path class="hk-ln" d="M '+(A.l-3)+' '+ay+' L '+B.x+' '+ay+' L '+B.x+' '+(B.b+5)+'" marker-end="url(#hkA)"/>';
+    var S=C("n8"),T=C("n3");
+    var top=Math.max(C("n0").b,C("n3").b),bot=C("n8").t,cy=(top+bot)/2;
+    s+='<path id="hkLoop" class="hk-loop'+($("hkTrack").classList.contains("loopy")?" hot":"")+'" d="M '+S.x+' '+(S.t-3)+' C '+S.x+' '+cy+', '+T.x+' '+cy+', '+T.x+' '+(T.b+5)+'" marker-end="url(#hkAA)"/>';
+    svg.innerHTML=s;
+  }
+
+  /* ---------- пилюля ---------- */
+  function placePill(id,ms){
+    var e=el(id),p=$("hkPill");
+    p.style.transitionDuration=(ms||0)+"ms";
+    p.style.left=(e.offsetLeft+e.offsetWidth/2)+"px";
+    p.style.top=(e.offsetTop-2)+"px";
+  }
+
+  /* ---------- карточка станции ---------- */
+  function renderCard(id){
+    var c=CARD[id],h="";
+    if(c.type==="hook"){
+      h+='<div class="hk-ch"><span class="hk-dom-chip '+domCls(c.dom)+'">'+c.dom+'</span><code class="hk-hook">'+c.hook+'</code><span class="hk-ct">'+c.title+'</span></div>';
+      h+='<div class="hk-cb">'+c.d+'</div>';
+      h+='<div class="hk-rows"><span class="hk-k">хук видит</span><span class="hk-v">'+c.see+'</span><span class="hk-k">хук может</span><span class="hk-v">'+c.can+'</span></div>';
+      if(c.chips)h+='<div class="hk-chips">'+c.chips.map(function(x){return '<span class="hk-minichip'+(x.indexOf("deny")>-1?" fin":"")+'">'+x+'</span>';}).join("")+'</div>';
+    }else{
+      var tag=id==="n0"?"старт конвейера":id==="n8"?"конец витка":"этап";
+      h+='<div class="hk-ch"><span class="hk-dom-chip">'+tag+'</span><span class="hk-ct">'+c.title+'</span></div>';
+      h+='<div class="hk-cb">'+c.body+'</div>';
+    }
+    if(c.note)h+='<div class="hk-note">'+c.note+'</div>';
+    if(c.demo){
+      h+='<div class="hd-box" id="hkDemo"><div class="hd-t"><span>👁 демо «подсмотреть и изменить»</span><button class="hd-replay" type="button">⟲ повторить</button></div>'
+        +'<div class="hd-lab">'+c.demo.lab+'</div>'
+        +'<div class="hd-cols"><div class="hd-col hd-before"><span>до хука</span><code>'+c.demo.before+'</code></div><div class="hd-arr">⟶</div><div class="hd-col hd-after"><span>после хука</span><code>'+c.demo.after+'</code></div></div></div>';
+      var g=gen;
+      setTimeout(function(){if(g!==gen)return;var b=$("hkDemo");if(b)b.classList.add("on");},1000);
+    }
+    $("hkCard").innerHTML=h;
+  }
+  $("hkCard").addEventListener("click",function(e){
+    if(!e.target.classList||!e.target.classList.contains("hd-replay"))return;
+    var b=$("hkDemo");if(!b)return;
+    b.classList.remove("on");void b.offsetWidth;
+    var g=gen;setTimeout(function(){if(g===gen)b.classList.add("on");},450);
+  });
+
+  /* ---------- состояния станций ---------- */
+  function paint(){
+    ORDER.forEach(function(id,i){
+      var e=el(id);
+      e.classList.toggle("cur",i===pos);
+      e.classList.toggle("done",i<pos);
+    });
+  }
+
+  /* ---------- движок ---------- */
+  function dwell(id){var c=CARD[id];if(c.demo)return 4200;if(c.type==="hook")return 3200;return 2400;}
+  function arrive(){
+    paint();renderCard(ORDER[pos]);
+    if(playing)later(dwell(ORDER[pos])/speed,step);
+  }
+  function move(fly){
+    var ms=fly/speed;
+    placePill(ORDER[pos],ms);
+    later(ms+70,arrive);
+  }
+  function step(){
+    if(pos===ORDER.length-1)loopFlight();
+    else{pos++;move(520);}
+  }
+  function loopFlight(){
+    cycle++;
+    $("hkCycle").textContent=cycle;
+    var badge=$("hkCycleB");
+    badge.classList.remove("pop");void badge.offsetWidth;badge.classList.add("pop");
+    var p=$("hkPill");p.textContent="результат ↩";
+    $("hkTrack").classList.add("loopy");
+    var lp=el("hkLoop");if(lp)lp.classList.add("hot");
+    pos=ORDER.indexOf(LOOP_TO);
+    var ms=1050/speed;
+    placePill(LOOP_TO,ms);
+    later(ms+90,function(){
+      p.textContent="промпт ▸";
+      $("hkTrack").classList.remove("loopy");
+      var l2=el("hkLoop");if(l2)l2.classList.remove("hot");
+      arrive();
+    });
+  }
+  function setPlay(on){
+    playing=on;
+    $("hkPlay").textContent=on?"⏸ Пауза":"▶ Запуск";
+  }
+
+  /* ---------- управление ---------- */
+  $("hkPlay").addEventListener("click",function(){
+    if(playing){setPlay(false);return;}
+    setPlay(true);
+    later(dwell(ORDER[pos])/speed,step);
+  });
+  $("hkStep").addEventListener("click",function(){
+    if(playing)setPlay(false);
+    clearTimers();step();
+  });
+  $("hkReset").addEventListener("click",function(){
+    clearTimers();setPlay(false);
+    cycle=1;$("hkCycle").textContent="1";
+    pos=0;$("hkPill").textContent="промпт ▸";
+    $("hkTrack").classList.remove("loopy");
+    var lp=el("hkLoop");if(lp)lp.classList.remove("hot");
+    placePill("n0",0);paint();renderCard("n0");
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#hkSpeed .chip"),function(ch){
+    ch.addEventListener("click",function(){
+      speed=parseFloat(ch.getAttribute("data-s"));
+      Array.prototype.forEach.call(document.querySelectorAll("#hkSpeed .chip"),function(x){x.classList.toggle("active",x===ch);});
+    });
+  });
+  ORDER.forEach(function(id,i){
+    el(id).addEventListener("click",function(){
+      if(playing)setPlay(false);
+      clearTimers();pos=i;move(380);
+    });
+  });
+
+  /* ---------- init ---------- */
+  draw();paint();renderCard("n0");placePill("n0",0);
+  window.addEventListener("resize",function(){
+    draw();
+    var p=$("hkPill"),d=p.style.transitionDuration;
+    p.style.transitionDuration="0ms";
+    placePill(ORDER[pos],0);
+    setTimeout(function(){p.style.transitionDuration=d;},60);
+  });
+})();
+
+})();
+</script>
+</body>
+</html>

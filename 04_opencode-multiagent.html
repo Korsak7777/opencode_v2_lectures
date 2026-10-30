@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>04. Мультиагенты в OpenCode V2: primary, субагенты, Selection и конец эры OMO</title>
+<style>
+:root{
+  --bg:#f2f4f8; --card:#ffffff; --ink:#20242c; --muted:#5b6472; --faint:#8b93a3;
+  --accent:#2f5fd7; --accent-soft:#e9eefb; --accent-ink:#24489e;
+  --org:#c96f10; --org-ink:#a35608; --org-bg:#fdf3e6; --org-br:#f0d5ab;
+  --ok:#177a3e; --ok-bg:#e5f4ea; --ok-br:#bfe3cc;
+  --sys:#8c2f44; --sys-bg:#faeef1; --sys-br:#eccdd5;
+  --border:#dde2ea; --border-soft:#e8ecf2;
+  --code-bg:#f5f7fa; --code-ink:#2a3140;
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono","Courier New",monospace;
+  --shadow:0 1px 2px rgba(30,37,52,.05),0 10px 26px -14px rgba(30,37,52,.14);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink)}
+a:hover{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.page{max-width:1000px;margin:0 auto;padding:6px 34px 90px}
+section{scroll-margin-top:70px}
+
+/* ---- sticky TOC ---- */
+.toc{position:sticky;top:0;z-index:60;background:rgba(242,244,248,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-soft)}
+.toc-inner{max-width:1000px;margin:0 auto;padding:8px 34px;display:flex;flex-wrap:wrap;gap:4px}
+.toc a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.toc a:hover{color:var(--accent-ink);background:var(--accent-soft)}
+.toc a.interact{color:var(--accent-ink);font-weight:600}
+.toc a.interact::before{content:"◉ ";font-size:10px;vertical-align:1px}
+
+/* ---- doc head ---- */
+.doc-head{background:linear-gradient(180deg,#ffffff,#fbfcfe);border:1px solid var(--border-soft);border-radius:16px;padding:30px 34px;margin:22px 0;box-shadow:var(--shadow)}
+.doc-tags{font-family:var(--mono);font-size:13px;color:var(--accent-ink);margin-bottom:10px}
+.doc-tags span{background:var(--accent-soft);border-radius:6px;padding:2px 8px;margin-right:6px;display:inline-block}
+h1{font-size:29px;line-height:1.25;margin:0 0 14px;letter-spacing:-.01em}
+.lead{font-size:16.5px;color:#333a46;margin:0}
+
+/* ---- sections / cards ---- */
+section.card{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:26px 32px;margin:22px 0;box-shadow:var(--shadow)}
+h2{font-size:23px;line-height:1.3;margin:0 0 14px;color:var(--ink)}
+h2 .sec-n{color:var(--accent)}
+h3{font-size:18.5px;margin:26px 0 8px}
+h4{font-size:15.5px;margin:18px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:6px 0}
+.small{font-size:13.5px;color:var(--muted)}
+code{font-family:var(--mono);font-size:.9em;background:#eef1f7;border:1px solid var(--border-soft);border-radius:5px;padding:1px 5px;color:#33405e}
+pre.code{background:var(--code-bg);border:1px solid var(--border-soft);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:13.4px;line-height:1.62;color:var(--code-ink);margin:14px 0}
+pre.code code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14.3px;margin:14px 0;background:#fff}
+th{background:#eef1f6;text-align:left;font-weight:600;color:#3a4353;padding:9px 12px;border:1px solid var(--border-soft)}
+td{border:1px solid var(--border-soft);padding:9px 12px;vertical-align:top}
+tbody tr:nth-child(even){background:#fafbfd}
+
+/* ---- glossary ---- */
+dl.gloss{margin:12px 0;display:grid;grid-template-columns:250px 1fr;gap:8px 18px}
+dl.gloss dt{font-weight:700;color:var(--accent-ink)}
+dl.gloss dd{margin:0;color:#333a46}
+dl.gloss dt,dl.gloss dd{padding:6px 0;border-bottom:1px dashed var(--border-soft)}
+
+/* ---- notes / badges ---- */
+.note{background:#f2f6ff;border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.8px;color:#2c3550}
+.note.warn{background:var(--org-bg);border-color:var(--org-br);border-left-color:var(--org);color:#5c430f}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:4px 13px;border-radius:99px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.badge.warn{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.badge.neutral{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.badge.sys{background:var(--sys-bg);color:var(--sys);border:1px solid var(--sys-br)}
+.formula{font:800 14px var(--mono);text-align:center;color:var(--accent-ink);background:var(--accent-soft);border:1px solid #c6d4f2;border-radius:10px;padding:9px 12px;margin:14px 0}
+.formula small{display:block;font:600 11px var(--mono);color:var(--muted);margin-top:3px}
+
+/* ---- viz common ---- */
+.viz{border:1.5px solid #b9c9ec;border-radius:16px;background:linear-gradient(180deg,#fdfeff,#f8fafd);padding:24px 28px;margin:26px 0;box-shadow:var(--shadow);scroll-margin-top:70px}
+.viz-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#2f5fd7,#5b83e8);border-radius:6px;padding:3px 10px;margin-bottom:10px}
+.viz h3{margin:0 0 6px;font-size:20px}
+.viz-hint{font-size:14px;color:var(--muted);margin:4px 0 16px}
+.viz-note{font-size:13.5px;color:var(--muted);margin:16px 0 0;padding-top:12px;border-top:1px dashed var(--border)}
+
+/* buttons / chips */
+.btn{font:600 14px/1.2 inherit;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:9px 16px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#2750bd;color:#fff}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.chip{font-family:inherit;font-weight:600;font-size:13.5px;line-height:1.2;color:#39404d;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;cursor:pointer;transition:all .12s}
+.chip:hover{border-color:var(--accent)}
+.chip.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---- static flow diagrams ---- */
+.flow{border:1px solid var(--border-soft);border-radius:13px;background:linear-gradient(#fbfcfe,#f5f7fb);padding:20px 24px;margin:16px 0;font-size:13.8px}
+.flow-cap{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:12px}
+.fnode{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:8px 14px;text-align:center;font-weight:600;color:#333a46;max-width:460px;margin:0 auto}
+.fnode.accent{background:var(--accent-soft);border-color:#c6d4f2;color:var(--accent-ink)}
+.fnode small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.varrow{display:flex;flex-direction:column;align-items:center;padding:2px 0;color:#aab3c2}
+.varrow .vline{width:2px;height:12px;background:#c3ccda}
+.varrow .vlab{font-size:11.5px;color:var(--muted);font-weight:600;margin:1px 0}
+.cl-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.cl-row .fnode{flex:1;min-width:170px;max-width:215px}
+
+/* ---- modes cards ---- */
+.modes-row{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.modes-row .mode-c{flex:1;min-width:220px;border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:14px 16px}
+.mode-c .mt{font:800 15px var(--mono);color:var(--accent-ink)}
+.mode-c .md{font-size:13.5px;color:#333a46;margin-top:6px}
+
+/* ---- case diagram ---- */
+.case-node{max-width:560px;margin:0 auto}
+.case-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:4px}
+.case-cell{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:8px 10px;text-align:left}
+.case-cell .cc-n{font:700 11.5px var(--mono);color:#2a3140;word-break:break-all}
+.case-cell .cc-r{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4}
+.case-cell.hi{border-color:var(--org);background:var(--org-bg)}
+.case-cell.hi .cc-n{color:var(--org-ink)}
+.case-cell .cc-x{font-size:10px;font-weight:800;color:var(--org-ink);margin-top:3px}
+
+/* ================= VIZ 1: Selection витрины ================= */
+.sel-head{max-width:560px;margin:0 auto 6px;text-align:center}
+.sel-task{background:#eef4ff;border:1px solid #d5e2f6;border-radius:12px;padding:10px 14px;font-style:italic;color:#2c3a5c;margin-top:8px;font-size:14.5px}
+.sel-flowlab{font-size:12px;color:var(--muted);font-weight:600;margin-top:8px}
+.sel-stage{position:relative;margin-top:14px}
+.sel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sel-card{position:relative;border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:10px 12px;transition:border-color .25s,background .25s,opacity .25s,box-shadow .25s;overflow:visible}
+.sel-name-row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.sel-name{font:700 12.5px var(--mono);color:#2a3140;word-break:break-all}
+.sel-mode{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:5px;padding:1px 6px;white-space:nowrap}
+.sel-mode.primary{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.sel-mode.subagent{background:var(--accent-soft);color:var(--accent-ink);border:1px solid #c6d4f2}
+.sel-desc{font-size:12px;color:var(--muted);line-height:1.45;margin-top:5px;min-height:35px}
+.sel-desc mark{background:#fde8c8;color:#7a4a06;font-weight:700;border-radius:3px;padding:0 2px}
+.sel-card.dim{opacity:.42}
+.sel-card.matched{border-color:#9db6ea;background:#f2f7ff}
+.sel-card.matched .sel-desc{color:#33405e}
+.sel-card.winner{border-color:var(--ok);background:var(--ok-bg);box-shadow:0 0 0 3px rgba(23,122,62,.16)}
+.sel-card.winner .sel-desc mark{background:#c9ead4;color:#0f5130}
+.sel-card.winner .sel-name{color:#0f5130}
+.sel-pick{display:none;position:absolute;top:-11px;right:9px;background:var(--ok);color:#fff;font:800 10px var(--mono);border-radius:99px;padding:2px 9px;box-shadow:var(--shadow)}
+.sel-pick.show{display:inline-block;animation:selpop .35s}
+@keyframes selpop{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.sel-beam{position:absolute;z-index:7;display:none;transform:translateX(-50%);background:var(--accent);color:#fff;font:800 11px var(--mono);border-radius:99px;padding:3px 11px;box-shadow:var(--shadow);white-space:nowrap;transition:left .17s ease,top .17s ease,background .3s;pointer-events:none}
+.sel-beam.ok{background:var(--ok)}
+.sel-beam.land{animation:selLand .4s}
+@keyframes selLand{0%{transform:translateX(-50%) scale(1.3)}100%{transform:translateX(-50%) scale(1)}}
+.sel-stat{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;min-height:28px}
+.sel-legend{font-size:11.5px;color:var(--faint);text-align:center;margin-top:8px}
+.sel-why{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:14px 18px;margin-top:14px}
+.sel-why-t{font-weight:800;font-size:15px;color:var(--accent-ink);margin-bottom:5px}
+.sel-why-d{font-size:14px;color:#333a46}
+
+/* ================= VIZ 2: Конструктор оркестратора ================= */
+.orc-grid{display:grid;grid-template-columns:470px 1fr;gap:18px;align-items:start}
+.orc-rules{border:1px solid var(--border-soft);border-radius:13px;background:#fff;padding:12px 13px}
+.orc-rh{font:800 11px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin:0 0 9px}
+.orc-rlist{position:relative;max-height:428px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 4px 6px 2px}
+.orc-rule{border:1.5px solid var(--border);border-radius:10px;padding:6px 8px;background:#fff;display:flex;align-items:center;gap:7px;flex-wrap:nowrap;transition:border-color .2s,background .2s,opacity .2s}
+.orc-rule.off{opacity:.45;background:#f6f7fa}
+.orc-rule.win{border-color:var(--ok);background:var(--ok-bg)}
+.orc-rule.lose{border-style:dashed;background:#fbfcfe}
+.orc-rule.new{animation:orcnew 1.2s}
+@keyframes orcnew{0%{background:#fde8c8;border-color:var(--org)}100%{}}
+.orc-num{font:800 10.5px var(--mono);color:var(--faint);min-width:28px}
+.orc-eff{display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+.orc-eff button{font:700 10px var(--mono);padding:3px 7px;border:none;background:#fff;color:var(--faint);cursor:pointer;transition:all .12s}
+.orc-eff button:hover{color:var(--ink)}
+.orc-eff button.a.on{background:var(--ok-bg);color:var(--ok)}
+.orc-eff button.k.on{background:var(--org-bg);color:var(--org-ink)}
+.orc-eff button.d.on{background:#fdeceb;color:#c23a2b}
+.orc-tgt{font:700 11px var(--mono);color:#2a3140;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.orc-mark{font:800 9px var(--mono);color:var(--ok);white-space:nowrap;flex-shrink:0}
+.orc-rule.lose .orc-mark{color:var(--faint);text-decoration:line-through}
+.orc-mv{font:700 11px/1 inherit;color:var(--muted);background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 6px;cursor:pointer;flex-shrink:0}
+.orc-mv:hover:not(:disabled){border-color:var(--accent);color:var(--accent-ink)}
+.orc-mv:disabled{opacity:.3;cursor:default}
+.orc-on{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--muted);flex-shrink:0;cursor:pointer}
+.orc-on input{accent-color:var(--accent);cursor:pointer;margin:0}
+.orc-add{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border-top:1px dashed var(--border);margin-top:10px;padding-top:10px}
+.orc-add-lab{font-size:11.5px;font-weight:700;color:var(--muted)}
+.orc-sel{font:600 12px var(--mono);color:#2a3140;border:1.5px solid var(--border);border-radius:8px;padding:5px 7px;background:#fff;max-width:190px}
+.orc-right{display:flex;flex-direction:column;gap:12px;min-width:0}
+.orc-sum{display:flex;gap:7px;flex-wrap:wrap}
+.orc-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.orc-agent{border:1.5px solid var(--border);border-radius:10px;padding:7px 10px;background:#fff;cursor:pointer;transition:all .3s}
+.orc-agent:hover{box-shadow:0 0 0 2px rgba(47,95,215,.15)}
+.oa-name{font:700 11.5px var(--mono);color:#2a3140;word-break:break-all}
+.oa-role{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.oa-st{display:block;font-size:10.5px;font-weight:800;margin-top:4px;letter-spacing:.02em}
+.orc-agent.allow{border-color:var(--ok-br);background:var(--ok-bg)} .orc-agent.allow .oa-st{color:var(--ok)}
+.orc-agent.ask{border-color:var(--org-br);background:var(--org-bg)} .orc-agent.ask .oa-st{color:var(--org-ink)}
+.orc-agent.deny{border-color:#f2c7c2;background:#fdeceb} .orc-agent.deny .oa-st{color:#c23a2b}
+.orc-agent.none{opacity:.6;background:#f4f6fa}
+.orc-agent.none .oa-st{color:var(--muted)}
+.orc-agent.pinned{box-shadow:0 0 0 3px rgba(47,95,215,.22)}
+.orc-primary-strip{font-size:12px;color:var(--muted);border:1px dashed var(--border);border-radius:10px;padding:8px 12px;background:#fbfcfe}
+.orc-why{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:12px 15px;min-height:96px}
+.orc-why-t{font-weight:800;font-size:14px;color:var(--accent-ink);margin-bottom:6px}
+.orc-why ul{margin:6px 0;padding-left:20px;font:600 12px var(--mono);color:#33405e;list-style:none}
+.orc-why li{margin:4px 0}
+.orc-why li.w{color:var(--ok)}
+.orc-why li.l{color:var(--faint);text-decoration:line-through}
+.orc-why p{font-size:13px;color:#333a46;margin:8px 0 0}
+
+/* ================= VIZ 3: OMO было/стало ================= */
+.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:11px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.seg-b{font:700 14px/1.2 inherit;padding:10px 20px;border:none;background:#fff;color:var(--muted);cursor:pointer;transition:all .18s}
+.seg-b:hover{color:var(--accent-ink)}
+.seg-b.active{background:var(--accent);color:#fff}
+.omo-stage{position:relative;height:474px;border:1px dashed var(--border);border-radius:13px;background:linear-gradient(#fbfcfe,#f3f6fb);overflow:hidden;margin-top:14px}
+.omo-layer{position:absolute;inset:0;padding:20px 26px;display:flex;flex-direction:column;align-items:center;transition:opacity .65s ease,transform .65s ease,filter .65s ease}
+.omo-stage.s-was .omo-now{opacity:0;transform:scale(1.05);pointer-events:none}
+.omo-stage.s-now .omo-was{opacity:0;transform:scale(.93);filter:blur(3px);pointer-events:none}
+.omo-you{max-width:200px}
+.omo-plugin{border:2px solid var(--sys-br);background:var(--sys-bg);border-radius:13px;padding:12px 18px;text-align:center;max-width:520px}
+.omo-plugin .op-t{font:800 15px var(--mono);color:var(--sys)}
+.omo-plugin .op-s{font-size:11.5px;color:var(--muted);margin-top:3px}
+.omo-presets{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:9px}
+.omo-preset{font:700 11.5px var(--mono);background:#fff;border:1.5px solid var(--sys-br);border-radius:99px;padding:3px 11px;color:var(--sys)}
+.omo-plugin .op-api{font:800 10.5px var(--mono);color:var(--sys);margin-top:9px;border-top:1px dashed var(--sys-br);padding-top:7px}
+.omo-cap-row{margin-top:10px}
+/* СТАЛО: встроение агентов в ядро */
+.omo-now .emb{opacity:0;transform:translateY(18px) scale(.88);transition:opacity .55s cubic-bezier(.3,1.2,.4,1),transform .55s cubic-bezier(.3,1.2,.4,1)}
+.omo-stage.s-now .omo-now .emb{opacity:1;transform:none}
+.omo-core{border:2px solid #c6d4f2;background:linear-gradient(180deg,#f4f8ff,#e9eefb);border-radius:14px;padding:13px 20px;text-align:center;max-width:600px;position:relative}
+.omo-core .oc-t{font:800 15px var(--mono);color:var(--accent-ink)}
+.omo-core .oc-s{font-size:11.5px;color:var(--muted);margin-top:3px}
+.omo-embed-lab{font:800 9.5px var(--mono);color:var(--accent-ink);text-transform:uppercase;letter-spacing:.07em;margin-top:9px}
+.omo-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:5px}
+.omo-chip{font:700 10.5px var(--mono);background:#fff;border:1.5px solid #9db6ea;border-radius:99px;padding:2px 9px;color:var(--accent-ink)}
+.omo-subrow{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;max-width:640px}
+.omo-subrow .fnode{flex:1;min-width:250px;max-width:300px;font-size:12.5px;padding:7px 10px}
+.omo-ghost{position:absolute;right:16px;top:14px;border:2px dashed #d9a0a0;border-radius:10px;padding:7px 12px;color:#b0524d;font:800 10.5px var(--mono);transform:rotate(6deg);background:rgba(255,255,255,.75);opacity:0;transition:opacity .7s .45s;z-index:5}
+.omo-stage.s-now .omo-ghost{opacity:.8}
+.omo-cap{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:12px 16px;font-size:14px;color:#333a46;margin-top:12px;min-height:66px}
+.omo-cap b{color:var(--accent-ink)}
+
+/* ---- links ---- */
+.links ul{list-style:none;padding:0}
+.links li{padding:7px 0;border-bottom:1px dashed var(--border-soft);font-size:14.5px}
+.links li:last-child{border-bottom:none}
+.links .lnk-desc{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.ext::after{content:" ↗";font-size:12px;color:var(--faint)}
+footer{margin-top:34px;text-align:center;color:var(--faint);font-size:12.5px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#glossary">Глоссарий</a>
+    <a href="#profile">Профиль агента</a>
+    <a href="#modes">Режимы</a>
+    <a href="#selection">Selection</a>
+    <a href="#viz-select" class="interact">Витрины Selection</a>
+    <a href="#builtin">Встроенные</a>
+    <a href="#perms">Permissions</a>
+    <a href="#viz-orc" class="interact">Конструктор оркестратора</a>
+    <a href="#omo">Конец эры OMO</a>
+    <a href="#viz-omo" class="interact">OMO: было/стало</a>
+    <a href="#case">Кейс репозитория</a>
+    <a href="#summary">Резюме</a>
+    <a href="#links">Ссылки</a>
+  </div>
+</nav>
+
+<main class="page">
+
+<header class="doc-head">
+  <div class="doc-tags"><span>#AI_gen</span><span>#opencode</span><span>#ai-agents</span></div>
+  <h1>04. Мультиагенты в OpenCode V2: primary, субагенты, Selection и конец эры OMO</h1>
+  <p class="lead">Один универсальный агент — как швейцарский нож: всё при нём, но ни для чего не идеален. Мультиагентность закрывает три потребности разом: <b>специализацию</b> (каждый профиль заточен под свою роль), <b>права</b> (у каждого агента свои permissions) и <b>разделение труда</b> (оркестратор думает, исполнители делают). В V2 агенты — first-class сущности: свой markdown-файл, своя модель, свои права, без сторонних прослоек. <a href="02_opencode-v1-vs-v2.md">Заметка 02 цикла</a> обещала: «как заменить личный OMO-сетап нативными агентами V2 — тема заметки 04». Обещание выполняется. Источник фактов — <a href="https://opencode.ai/v2/docs/agents" target="_blank" rel="noopener" class="ext">V2 agents docs</a>.</p>
+</header>
+
+<!-- ============================ ГЛОССАРИЙ ============================ -->
+<section class="card" id="glossary">
+  <h2><span class="sec-n">·</span> Мини-глоссарий</h2>
+  <dl class="gloss">
+    <dt>primary-агент</dt><dd>главный агент сессии: именно с ним идёт диалог; задаётся полем <code>mode: primary</code>.</dd>
+    <dt>субагент (subagent)</dt><dd>агент, который не стартует сам, а запускается другим агентом через tool <code>subagent</code>.</dd>
+    <dt>Selection</dt><dd>механизм выбора агентов: стартовый определяется настройкой <code>default_agent</code>, субагентов выбирает primary-агент по полю <code>description</code>.</dd>
+    <dt>description</dt><dd>«витрина» агента: текст, который видит выбирающая модель; от него зависит, позовут агента или нет.</dd>
+    <dt>last-match-wins</dt><dd>семантика списка permissions: побеждает последнее совпавшее правило.</dd>
+    <dt>оркестратор-исполнители</dt><dd>паттерн: primary-агент, которому запрещено всё, кроме запуска конкретных субагентов.</dd>
+  </dl>
+</section>
+
+<!-- ============================ ПРОФИЛЬ АГЕНТА ============================ -->
+<section class="card" id="profile">
+  <h2><span class="sec-n">·</span> Агент = именованный профиль</h2>
+  <p>Агент — это не «чат с ролью», а именованный профиль из четырёх слагаемых:</p>
+  <div class="formula">агент = system-промпт + модель + permissions + отображение<small>задаётся файлом .opencode/agents/&lt;name&gt;.md или полем agents в JSONC-конфиге</small></div>
+  <ul>
+    <li><b>markdown-файл</b> <code>.opencode/agents/&lt;name&gt;.md</code>: тело файла — system-промпт, frontmatter — поля конфигурации (концепция проектного слоя <code>.opencode/</code> — из <a href="03_opencode-architecture-config.md">заметки 03</a>);</li>
+    <li><b>поле <code>agents</code></b> в JSONC-конфиге.</li>
+  </ul>
+  <p>Вложенные пути дают вложенные ID: файл в подкаталоге становится агентом <code>team/reviewer</code>. Основные поля профиля:</p>
+  <table>
+    <thead><tr><th>Поле</th><th>Смысл</th></tr></thead>
+    <tbody>
+      <tr><td><code>mode</code></td><td>роль в сессии: <code>primary</code> / <code>subagent</code> / <code>all</code> (см. ниже)</td></tr>
+      <tr><td><code>description</code></td><td>«витрина» для Selection — по ней выбирают субагента</td></tr>
+      <tr><td><code>model</code></td><td>модель агента; наследуется от родителя, если не задана</td></tr>
+      <tr><td><code>permissions</code></td><td>собственные правила агента</td></tr>
+      <tr><td><code>steps</code></td><td>лимит шагов</td></tr>
+      <tr><td><code>hidden</code> / <code>disabled</code> / <code>color</code></td><td>скрыть / выключить / подсветить агента</td></tr>
+      <tr><td><code>request</code></td><td>сохраняется, но модели пока не отправляется — в доках об этом warning</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================ РЕЖИМЫ ============================ -->
+<section class="card" id="modes">
+  <h2><span class="sec-n">·</span> Три режима: primary, subagent, all</h2>
+  <div class="modes-row">
+    <div class="mode-c"><div class="mt">primary</div><div class="md">главный агент сессии; режим по умолчанию для новых кастомных агентов</div></div>
+    <div class="mode-c"><div class="mt">subagent</div><div class="md">запуск только через tool <code>subagent</code>, самостоятельно не стартует</div></div>
+    <div class="mode-c"><div class="mt">all</div><div class="md">работает в обеих ролях</div></div>
+  </div>
+</section>
+
+<!-- ============================ SELECTION ============================ -->
+<section class="card" id="selection">
+  <h2><span class="sec-n">·</span> Selection: кто кого выбирает</h2>
+  <p>Механизм выбора агентов — двухуровневый, и на каждом уровне выбирает разное:</p>
+
+  <div class="flow">
+    <div class="flow-cap">Двухуровневый Selection</div>
+    <div class="fnode">новая сессия стартует</div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode"><code>default_agent</code><small>настройка из opencode.json — заметка 03</small></div>
+    <div class="varrow"><span class="vlab">агент существует, видим и primary-совместим?</span><span class="vline"></span></div>
+    <div class="fnode" style="border-style:dashed;max-width:560px;font-weight:400;color:var(--muted);font-size:12.5px">нет → fallback: сначала встроенный <span class="mono">build</span>, затем первый видимый primary</div>
+    <div class="varrow"><span class="vlab">да</span><span class="vline"></span></div>
+    <div class="fnode accent">PRIMARY-АГЕНТ<small>ведёт диалог с пользователем</small></div>
+    <div class="varrow"><span class="vlab">нужен помощник: tool <span class="mono">subagent</span></span><span class="vline"></span></div>
+    <div class="fnode">выбор по <code>description</code><small>«витрина» агента</small></div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode">СУБАГЕНТ<small>живёт по собственным permissions</small></div>
+  </div>
+
+  <p>Стартового агента назначает <b>человек</b> — настройкой <code>default_agent</code>. Субагентов назначает <b>машина</b>: OpenCode показывает <code>description</code> модели, выбирающей, какого агента запустить. Отсюда практический вывод:</p>
+  <div class="note"><b>description — не комментарий, а интерфейс выбора</b>; расплывчатое описание — субагента просто не позовут. Если <code>default_agent</code> не существует, скрыт или не primary-совместим — срабатывает fallback: сначала встроенный <code>build</code>, затем первый видимый primary.</div>
+
+  <!-- ==================== ИНТЕРАКТИВ 1: ВИТРИНЫ SELECTION ==================== -->
+  <div class="viz" id="viz-select">
+    <div class="viz-tag">Интерактив 1 · Selection</div>
+    <h3>Витрины description: primary выбирает субагента</h3>
+    <p class="viz-hint">Выберите формулировку задачи — «луч» прочитает витрины совпавших агентов и остановит выбор на подходящем. Оранжевая подсветка в карточках — совпавшие фрагменты витрин; ниже — объяснение, ПОЧЕМУ выбор упал именно туда. Кликайте пресеты сколько угодно раз.</p>
+
+    <div class="chip-row" id="selTasks">
+      <button class="chip" data-t="find">«найди, где в коде…»</button>
+      <button class="chip" data-t="plan">«спланируй рефакторинг»</button>
+      <button class="chip" data-t="write">«напиши материал»</button>
+      <button class="chip" data-t="links">«проверь ссылки»</button>
+      <button class="chip" data-t="general">«просто сделай широко»</button>
+    </div>
+
+    <div class="sel-head" style="margin-top:16px">
+      <div class="fnode accent">PRIMARY-АГЕНТ<small>получил задачу и решает, кого позвать на помощь</small></div>
+      <div class="sel-task" id="selTaskBox">— выберите задачу сверху, она появится здесь —</div>
+      <div class="sel-flowlab">↓ tool <span class="mono">subagent</span> · OpenCode показывает модели <span class="mono">description</span> всех агентов</div>
+    </div>
+
+    <div class="sel-stage" id="selStage">
+      <div class="sel-grid" id="selGrid">
+        <div class="sel-card" id="selc-build">
+          <div class="sel-name-row"><span class="sel-name">build</span><span class="sel-mode primary">primary</span></div>
+          <div class="sel-desc">дефолтный главный агент</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-plan">
+          <div class="sel-name-row"><span class="sel-name">plan</span><span class="sel-mode primary">primary</span></div>
+          <div class="sel-desc">планирование без правки файлов</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-general">
+          <div class="sel-name-row"><span class="sel-name">general</span><span class="sel-mode subagent">subagent</span></div>
+          <div class="sel-desc">широкие права; сам субагентов запускать не может</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-explore">
+          <div class="sel-name-row"><span class="sel-name">explore</span><span class="sel-mode subagent">subagent</span></div>
+          <div class="sel-desc">read-only поиск</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-material-writer">
+          <div class="sel-name-row"><span class="sel-name">material-writer</span><span class="sel-mode subagent">subagent</span></div>
+          <div class="sel-desc">написание MD</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-material-researcher">
+          <div class="sel-name-row"><span class="sel-name">material-researcher</span><span class="sel-mode subagent">subagent</span></div>
+          <div class="sel-desc">read-only поиск (glm-5.3-flash)</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-material-link-checker">
+          <div class="sel-name-row"><span class="sel-name">material-link-checker</span><span class="sel-mode subagent">subagent</span></div>
+          <div class="sel-desc">проверка ссылок</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+        <div class="sel-card" id="selc-material-reviewer">
+          <div class="sel-name-row"><span class="sel-name">material-reviewer</span><span class="sel-mode subagent">subagent</span></div>
+          <div class="sel-desc">ревью материала</div>
+          <span class="sel-pick">✓ выбран</span>
+        </div>
+      </div>
+      <div class="sel-beam" id="selBeam">читаю витрины…</div>
+      <div class="sel-stat" id="selStat"></div>
+      <div class="sel-legend">mode: primary — сам ведёт сессию · mode: subagent — запуск только через tool <span class="mono">subagent</span> · карточки: 4 встроенных агента + 4 исполнителя material-* из живого кейса</div>
+    </div>
+
+    <div class="sel-why">
+      <div class="sel-why-t" id="selWhyT">Как это работает</div>
+      <div class="sel-why-d" id="selWhyD">Выберите формулировку задачи наверху. Primary-агент получит её, прочитает витрины (description всех агентов), подсветит совпадения — и луч выбора остановится на подходящем агенте. Здесь появится объяснение выбора.</div>
+    </div>
+
+    <p class="viz-note">Формулировки задач — иллюстративные; тексты витрин взяты из заметки: описания встроенных агентов (build, plan, general, explore) — из таблицы встроенных, роли material-* — из живого кейса ниже. <b>description — интерфейс выбора: модель primary читает витрины.</b></p>
+  </div>
+</section>
+
+<!-- ============================ ВСТРОЕННЫЕ АГЕНТЫ ============================ -->
+<section class="card" id="builtin">
+  <h2><span class="sec-n">·</span> Встроенные агенты</h2>
+  <table>
+    <thead><tr><th>Агент</th><th>mode</th><th>Роль</th></tr></thead>
+    <tbody>
+      <tr><td><code>build</code></td><td>primary</td><td>дефолтный главный агент</td></tr>
+      <tr><td><code>plan</code></td><td>primary</td><td>планирование без правки файлов</td></tr>
+      <tr><td><code>general</code></td><td>субагент</td><td>широкие права; сам субагентов запускать не может</td></tr>
+      <tr><td><code>explore</code></td><td>субагент</td><td>read-only поиск</td></tr>
+      <tr><td><code>compaction</code> / <code>title</code> / <code>summary</code></td><td>скрытые служебные</td><td>обслуживание сессии</td></tr>
+    </tbody>
+  </table>
+  <p class="small">Раньше в этой таблице мог быть <code>scout</code> — в V2 встроенного <code>scout</code> нет.</p>
+</section>
+
+<!-- ============================ PERMISSIONS ============================ -->
+<section class="card" id="perms">
+  <h2><span class="sec-n">·</span> Permissions мультиагента: родитель решает, ребёнок отвечает</h2>
+  <p>Права в мультиагентной системе работают в два этажа:</p>
+  <div class="flow">
+    <div class="flow-cap">Два этажа прав</div>
+    <div class="cl-row">
+      <div class="fnode accent">родитель (parent)<small>решает, <b>кого</b> можно запускать: правила с action <span class="mono">subagent</span> в его permissions</small></div>
+      <div class="fnode">запущенный ребёнок (subagent)<small>живёт по <b>собственным</b> permissions — они и только они определяют, что ему можно</small></div>
+    </div>
+  </div>
+  <ul>
+    <li><b>Действия:</b> <code>shell</code>, <code>edit</code>, <code>subagent</code>, <code>read</code>/<code>glob</code>/<code>grep</code>, <code>webfetch</code>/<code>websearch</code>, <code>skill</code>.</li>
+    <li><b>Эффекты:</b> <code>allow</code> / <code>ask</code> / <code>deny</code>.</li>
+    <li><b>Побеждает последнее совпавшее правило</b> — <b>last-match-wins</b> (<a href="https://opencode.ai/v2/docs/permissions" target="_blank" rel="noopener" class="ext">V2 permissions docs</a>).</li>
+    <li><b>Слияние слоёв:</b> глобальные <code>permissions</code> применяются до агентских, агентские правила уточняют их.</li>
+  </ul>
+  <p>Из этого вырастает готовый паттерн из доков — <b>«оркестратор»</b>: deny <code>subagent *</code>, затем allow для конкретных ID агентов. Last-match-wins превращает пару правил в белый список исполнителей.</p>
+
+  <!-- ==================== ИНТЕРАКТИВ 2: КОНСТРУКТОР ОРКЕСТРАТОРА ==================== -->
+  <div class="viz" id="viz-orc">
+    <div class="viz-tag">Интерактив 2 · last-match-wins</div>
+    <h3>Конструктор оркестратора: permissions и белый список исполнителей</h3>
+    <p class="viz-hint">Слева — permissions оркестатора <span class="mono">newton</span> из живого кейса: deny <span class="mono">edit/shell/subagent *</span>, затем allow десяти <span class="mono">material-*</span>. Меняйте эффект правила (allow/ask/deny), порядок (↑/↓), включайте/отключайте правила, добавляйте свои — панель «Кого оркестратор сможет запустить» справа пересчитывается на лету. <b>Клик по карточке исполнителя</b> подсвечивает в списке правил пару «последнее совпавшее побеждает»: стрелка «◄ last-match-wins» встанет у победившей строки, перекрытые строки будут зачёркнуты.</p>
+
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-primary" id="orcReset">↺ Сбросить к кейсу</button>
+      <span class="small">исходный сетап: deny <span class="mono">edit/shell/subagent *</span> + allow десяти <span class="mono">material-*</span></span>
+    </div>
+
+    <div class="orc-grid">
+      <!-- левая колонка: правила -->
+      <div class="orc-rules">
+        <div class="orc-rh">permissions агента newton · список сверху вниз</div>
+        <div class="orc-rlist" id="orcRules"></div>
+        <div class="orc-add">
+          <span class="orc-add-lab">+ правило (в конец — последнее слово):</span>
+          <select class="orc-sel" id="orcNewTgt">
+            <option value="*">subagent *</option>
+            <option value="general">subagent general</option>
+            <option value="explore">subagent explore</option>
+            <option value="material-research-lead">subagent material-research-lead</option>
+            <option value="material-writer">subagent material-writer</option>
+            <option value="material-linker">subagent material-linker</option>
+            <option value="material-link-checker">subagent material-link-checker</option>
+            <option value="material-reviewer">subagent material-reviewer</option>
+            <option value="material-html-publisher">subagent material-html-publisher</option>
+            <option value="material-toc">subagent material-toc</option>
+            <option value="material-cleaner">subagent material-cleaner</option>
+            <option value="material-committer">subagent material-committer</option>
+            <option value="material-researcher">subagent material-researcher</option>
+          </select>
+          <select class="orc-sel" id="orcNewEff">
+            <option value="allow">allow</option>
+            <option value="ask">ask</option>
+            <option value="deny">deny</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="orcAdd">+ добавить</button>
+        </div>
+      </div>
+
+      <!-- правая колонка: живые решения -->
+      <div class="orc-right">
+        <div class="orc-sum" id="orcSum"></div>
+        <div class="orc-rh" style="margin:0">кого оркестратор сможет запустить · action <span class="mono">subagent</span> · кликните карточку</div>
+        <div class="orc-cards" id="orcAgents"></div>
+        <div class="orc-primary-strip"><b>build</b> · <b>plan</b> — mode: <span class="mono">primary</span>: главные агенты сессии, не исполнители — через tool <span class="mono">subagent</span> их не выбирают. В кейсе они доступны пользователю через переключатель (Tab).</div>
+        <div class="orc-why" id="orcWhy">
+          <div class="orc-why-t">Почему так?</div>
+          <p>Кликните карточку исполнителя — здесь появятся все совпавшие с его ID правила и отметка, какое из них победило (последнее совпавшее). Поменяйте порядок правил или их эффект — и победитель изменится на глазах.</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="viz-note">Демонстрация семантики <b>last-match-wins</b> на правилах action <span class="mono">subagent</span> (кого запускать) и <span class="mono">edit/shell</span> (что может сам оркестратор). У запущенного субагента — собственные permissions, этот список он не наследует: например, material-researcher из кейса — read-only (deny <span class="mono">edit/shell</span>), даже если оркестратору позволено больше.</p>
+  </div>
+</section>
+
+<!-- ============================ КОНЕЦ ЭРЫ OMO ============================ -->
+<section class="card" id="omo">
+  <h2><span class="sec-n">·</span> Конец эры OMO: от чужих пресетов к своим агентам</h2>
+  <p>Напоминание из <a href="02_opencode-v1-vs-v2.md">заметки 02</a>: OMO — Oh My OpenAgent (<a href="https://github.com/code-yeongyu/oh-my-openagent" target="_blank" rel="noopener" class="ext">oh-my-openagent, code-yeongyu</a>), ранее Oh My OpenCode, — сторонний набор готовых агентов и режимов для v1 (в его доках — explore, librarian, plan-consultant, plan-reviewer и другие). Ставился он в plugin-список конфига, а субагентов регистрировал через plugin API v1 (<a href="https://github.com/code-yeongyu/oh-my-openagent/issues/5701" target="_blank" rel="noopener" class="ext">issue #5701</a>) — тот самый breaking change №1: в V2 такие плагины не запускаются. Но главная новость не «сломалось», а «больше не нужно»: всё, что давал OMO, в V2 нативно.</p>
+
+  <!-- ==================== ИНТЕРАКТИВ 3: OMO БЫЛО/СТАЛО ==================== -->
+  <div class="viz" id="viz-omo">
+    <div class="viz-tag">Интерактив 3 · было / стало</div>
+    <h3>OMO: было / стало — переключаемая схема</h3>
+    <p class="viz-hint">Переключайте состояния: в «БЫЛО» мультиагентность — сторонняя прослойка над v1; при переходе к «СТАЛО» плагин OMO растворяется, а агенты встраиваются прямо в ядро V2.</p>
+
+    <div class="btn-row" style="justify-content:center">
+      <div class="seg" id="omoSeg">
+        <button class="seg-b active" data-s="was">БЫЛО · v1 + OMO</button>
+        <button class="seg-b" data-s="now">СТАЛО · V2 нативно</button>
+      </div>
+    </div>
+
+    <div class="omo-stage s-was" id="omoStage">
+      <!-- слой БЫЛО -->
+      <div class="omo-layer omo-was">
+        <div class="fnode omo-you">вы</div>
+        <div class="varrow"><span class="vline"></span></div>
+        <div class="fnode">opencode v1<small>plugin-список в конфиге</small></div>
+        <div class="varrow"><span class="vline"></span></div>
+        <div class="omo-plugin">
+          <div class="op-t">[ ПЛАГИН OMO ]</div>
+          <div class="op-s">чужие пресеты-агенты:</div>
+          <div class="omo-presets">
+            <span class="omo-preset">explore</span>
+            <span class="omo-preset">librarian</span>
+            <span class="omo-preset">plan-consultant</span>
+            <span class="omo-preset">plan-reviewer</span>
+            <span class="omo-preset">…</span>
+          </div>
+          <div class="op-api">субагенты регистрируются через plugin API v1</div>
+        </div>
+        <div class="varrow"><span class="vline"></span></div>
+        <div class="fnode">готовые режимы работы</div>
+        <div class="omo-cap-row"><span class="badge warn">чужие пресеты, сторонняя прослойка</span></div>
+      </div>
+
+      <!-- слой СТАЛО -->
+      <div class="omo-layer omo-now">
+        <div class="omo-ghost">плагин plugin API v1 —<br>в V2 не запускается</div>
+        <div class="fnode omo-you emb">вы</div>
+        <div class="varrow emb"><span class="vline"></span></div>
+        <div class="omo-core emb">
+          <div class="oc-t">primary-агент</div>
+          <div class="oc-s">свой файл <span class="mono">.opencode/agents/&lt;name&gt;.md</span> · system-промпт + модель + permissions</div>
+          <div class="omo-embed-lab">агенты — first-class, встроены в ядро</div>
+          <div class="omo-chips">
+            <span class="omo-chip emb">newton</span>
+            <span class="omo-chip emb">material-researcher</span>
+            <span class="omo-chip emb">material-writer</span>
+            <span class="omo-chip emb">material-reviewer</span>
+            <span class="omo-chip emb">… свои файлы</span>
+          </div>
+        </div>
+        <div class="varrow emb"><span class="vlab">tool <span class="mono">subagent</span> · выбор по <span class="mono">description</span></span><span class="vline"></span></div>
+        <div class="omo-subrow">
+          <div class="fnode emb">субагенты<small>тоже свои файлы; выбираются по description</small></div>
+          <div class="fnode emb">собственные permissions<small>каждый исполнитель живёт по своим правам</small></div>
+        </div>
+        <div class="omo-cap-row emb"><span class="badge ok">свои агенты, без прослоек</span></div>
+      </div>
+    </div>
+
+    <div class="omo-cap" id="omoCap"><b>БЫЛО (v1):</b> мультиагентность через сторонний плагин — OMO ставится в plugin-список конфига, субагентов регистрирует через plugin API v1; пресеты: explore, librarian, plan-consultant, plan-reviewer, …</div>
+
+    <p class="viz-note">Паттерн замены (практика, не цитата из доков): каждый «режим» OMO становится <b>своим</b> markdown-агентом в <code>.opencode/agents/</code> — с продуманным <code>description</code> (по нему сработает Selection) и permissions по роли. Те же возможности, но файл лежит в вашем репозитории, читается глазами и ревьюится как код.</p>
+  </div>
+</section>
+
+<!-- ============================ ЖИВОЙ КЕЙС ============================ -->
+<section class="card" id="case">
+  <h2><span class="sec-n">·</span> Живой кейс: этот репозиторий</h2>
+  <p>Эволюция на одном примере. В <a href="../../../zettelkasten/AI_start.md">zettelkasten/AI_start.md</a> — точка отсчёта: установка v1 тремя шагами, последний из которых «попросить opencode установить OMO». Сегодня тот же workflow выглядит так:</p>
+  <ul>
+    <li>корневой <code>opencode.jsonc</code> задаёт <code>default_agent: "newton"</code> — и прямо в комментарии объясняет: механизм Selection, новые сессии стартуют с оркестратора, остальные агенты (<code>build</code>, <code>plan</code>) доступны через переключатель (Tab), а существующие сессии настройка не трогает;</li>
+    <li>в <code>.opencode/agents/</code> — <b>11 агентов</b>: оркестратор <code>newton</code> и десять исполнителей <code>material-*</code>.</li>
+  </ul>
+  <p><code>newton</code> — учебниковый «оркестратор-исполнители» из паттерна выше: <code>mode: primary</code>, модель glm-5.3, permissions «deny <code>edit</code>/<code>shell</code>/<code>subagent *</code>, затем allow десяти субагентам <code>material-*</code>» — сам оркестратор не редактирует файлы и не выполняет shell, вся работа делегирована. Исполнители специализированы по ролям — например, <code>material-researcher</code>: <code>mode: subagent</code>, лёгкая модель glm-5.3-flash (та самая, что разобрана в <a href="../01_how-to-read-llm-architecture.md">заметке 01</a>), read-only права (deny <code>edit</code>/<code>shell</code>) — искать можно, менять нельзя:</p>
+
+  <div class="flow">
+    <div class="flow-cap">оркестратор → 10 исполнителей</div>
+    <div class="fnode case-node"><span class="mono">opencode.jsonc: default_agent = "newton"</span></div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode accent case-node">newton<small>primary · glm-5.3 · оркестратор</small><small class="mono" style="color:var(--accent-ink)">deny edit/shell/subagent * → allow material-*</small></div>
+    <div class="varrow"><span class="vlab">tool <span class="mono">subagent</span> · белый список из десяти</span><span class="vline"></span></div>
+    <div class="case-grid">
+      <div class="case-cell"><div class="cc-n">material-research-lead</div><div class="cc-r">исследование (сводный бриф)</div></div>
+      <div class="case-cell"><div class="cc-n">material-writer</div><div class="cc-r">написание MD</div></div>
+      <div class="case-cell"><div class="cc-n">material-linker</div><div class="cc-r">связывание заметок</div></div>
+      <div class="case-cell"><div class="cc-n">material-link-checker</div><div class="cc-r">проверка ссылок</div></div>
+      <div class="case-cell"><div class="cc-n">material-reviewer</div><div class="cc-r">ревью материала</div></div>
+      <div class="case-cell"><div class="cc-n">material-html-publisher</div><div class="cc-r">HTML (опционально)</div></div>
+      <div class="case-cell"><div class="cc-n">material-toc</div><div class="cc-r">оглавление и теги</div></div>
+      <div class="case-cell"><div class="cc-n">material-cleaner</div><div class="cc-r">чистка временного</div></div>
+      <div class="case-cell"><div class="cc-n">material-committer</div><div class="cc-r">коммит</div></div>
+      <div class="case-cell hi"><div class="cc-n">material-researcher</div><div class="cc-r">read-only поиск</div><div class="cc-x">glm-5.3-flash · deny edit/shell</div></div>
+    </div>
+  </div>
+
+  <div class="note">От «поставь мне OMO» — к одиннадцати своим файлам с точными правами. Это и есть конец эры OMO.</div>
+</section>
+
+<!-- ============================ РЕЗЮМЕ ============================ -->
+<section class="card" id="summary">
+  <h2><span class="sec-n">·</span> Мультиагенты одним взглядом</h2>
+  <table>
+    <thead><tr><th>Вопрос</th><th>Ответ</th></tr></thead>
+    <tbody>
+      <tr><td>Что такое агент</td><td>именованный профиль: system-промпт + модель + permissions + отображение</td></tr>
+      <tr><td>Как задать</td><td><code>.opencode/agents/&lt;name&gt;.md</code> или поле <code>agents</code>; вложенные пути → вложенные ID (<code>team/reviewer</code>)</td></tr>
+      <tr><td>Режимы</td><td><code>primary</code> (дефолт для кастомных) / <code>subagent</code> / <code>all</code></td></tr>
+      <tr><td>Кто стартует сессию</td><td><code>default_agent</code>; если не годится — fallback: <code>build</code> → первый видимый primary</td></tr>
+      <tr><td>Кто выбирает субагентов</td><td>primary-агент по <code>description</code> — «витрине» агента (механизм Selection)</td></tr>
+      <tr><td>Встроенные</td><td><code>build</code>, <code>plan</code>, <code>general</code>, <code>explore</code> (+ скрытые <code>compaction</code>/<code>title</code>/<code>summary</code>); <code>scout</code> в V2 нет</td></tr>
+      <tr><td>Права в паре parent/child</td><td>parent решает action <code>subagent</code>, кого запускать; ребёнок живёт по своим permissions</td></tr>
+      <tr><td>Порядок правил</td><td>глобальные до агентских, агентские уточняют; last-match-wins</td></tr>
+      <tr><td>Паттерн «оркестратор»</td><td>deny <code>subagent *</code> + allow конкретных ID — белый список исполнителей</td></tr>
+      <tr><td>OMO</td><td>в V2 не запускается (plugin API v1) и не нужен: режимы → свои агенты в <code>.opencode/agents/</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================ ССЫЛКИ ============================ -->
+<section class="card links" id="links">
+  <h2><span class="sec-n">·</span> Ссылки</h2>
+  <h3>Внутренние</h3>
+  <ul>
+    <li><a href="02_opencode-v1-vs-v2.md">02. OpenCode v1 vs V2</a><span class="lnk-desc">рамка цикла и блок «Куда делся OMO»: эта заметка выполняет его анонс — замену OMO-сетапа нативными агентами; там же breaking change №1 (plugin API).</span></li>
+    <li><a href="03_opencode-architecture-config.md">03. Установка и настройка OpenCode V2</a><span class="lnk-desc">где живут агенты: проектный слой <span class="mono">.opencode/</span>, <span class="mono">default_agent</span>, hot-reload агентов без перезапуска.</span></li>
+    <li><a href="../01_how-to-read-llm-architecture.md">01. Как читать архитектуру LLM-моделей</a><span class="lnk-desc">про модели, которые встают в поля <span class="mono">model</span> агентов: разбор GLM-5.3-Flash — рабочей модели material-researcher из кейса.</span></li>
+    <li><a href="../../../zettelkasten/AI_start.md">Установка openCode &amp; OMO</a><span class="lnk-desc">историческая точка отсчёта кейса: сетап v1 с установкой OMO одной просьбой.</span></li>
+  </ul>
+  <h3>Внешние</h3>
+  <ul>
+    <li><a href="https://opencode.ai/v2/docs/agents" target="_blank" rel="noopener" class="ext">Агенты в OpenCode V2</a><span class="lnk-desc">главный источник заметки: модель агента, режимы, Selection, встроенные агенты, паттерн «оркестратор».</span></li>
+    <li><a href="https://opencode.ai/v2/docs/permissions" target="_blank" rel="noopener" class="ext">Permissions в V2</a><span class="lnk-desc">действия (<span class="mono">subagent</span> в том числе), эффекты, last-match-wins, слияние глобальных и агентских правил.</span></li>
+    <li><a href="https://github.com/code-yeongyu/oh-my-openagent" target="_blank" rel="noopener" class="ext">Oh My OpenAgent (code-yeongyu)</a><span class="lnk-desc">прежний путь к мультиагентности: набор агентов/режимов для v1, регистрация субагентов через plugin API v1.</span></li>
+    <li><a href="https://github.com/code-yeongyu/oh-my-openagent/issues/5701" target="_blank" rel="noopener" class="ext">Issue #5701 (oh-my-openagent)</a><span class="lnk-desc">подтверждение того, что OMO регистрирует субагентов через plugin API v1, — механика, из-за которой он не запускается в V2.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/config" target="_blank" rel="noopener" class="ext">Конфигурация OpenCode V2</a><span class="lnk-desc">слои конфигурации, в которые встают <span class="mono">agents</span> и <span class="mono">default_agent</span>.</span></li>
+  </ul>
+</section>
+
+<footer>
+  HTML-версия материала <a class="mono" href="04_opencode-multiagent.md">llm_harness/opencode_v2/04_opencode-multiagent.md</a> · автономная страница со встроенными интерактивами · работает офлайн
+</footer>
+
+</main>
+
+<script>
+(function(){
+"use strict";
+/* ================================================================
+   ИНТЕРАКТИВ 1 · Selection: выбор субагента по description
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+
+  var AGENTS=[
+    {id:"build",desc:"дефолтный главный агент"},
+    {id:"plan",desc:"планирование без правки файлов"},
+    {id:"general",desc:"широкие права; сам субагентов запускать не может"},
+    {id:"explore",desc:"read-only поиск"},
+    {id:"material-writer",desc:"написание MD"},
+    {id:"material-researcher",desc:"read-only поиск (glm-5.3-flash)"},
+    {id:"material-link-checker",desc:"проверка ссылок"},
+    {id:"material-reviewer",desc:"ревью материала"}
+  ];
+
+  var TASKS={
+    find:{task:"Найди, где в этом проекте настраиваются права агентов: только найти и показать, ничего не менять",
+      winner:"explore",
+      marks:{explore:["read-only поиск"], "material-researcher":["read-only поиск"]},
+      whyT:"Выбор: explore — «read-only поиск»",
+      whyD:"Задача просит <b>найти и не менять</b> — витрина explore отвечает обоими словами: «поиск» ↔ «найди», «read-only» ↔ «ничего не менять». Заметьте: витрина material-researcher содержит те же слова — она тоже подсвечена, модель-выборщик видит обе. Побеждает та, чьё описание точнее ложится на контекст задачи (здесь — код проекта, а не конвейер материалов). Именно поэтому description — не комментарий, а интерфейс выбора: расплывчатая витрина проигрывает точной."},
+    plan:{task:"Спланируй рефакторинг модуля конфигурации — файлы пока не трогай",
+      winner:"plan",
+      marks:{plan:["планирование без правки файлов"]},
+      whyT:"Выбор: plan — «планирование без правки файлов»",
+      whyD:"Двойное совпадение: «планирование» ↔ «спланируй рефакторинг», «без правки файлов» ↔ «файлы пока не трогай». Нюанс режима: plan — mode: primary: это главный агент сессии (в кейсе ниже build и plan доступны пользователю через переключатель Tab), а не исполнитель tool subagent. Но правило то же: совпадение текста задачи с витриной определяет, на ком остановится выбор."},
+    write:{task:"Напиши черновик нового материала в Markdown",
+      winner:"material-writer",
+      marks:{"material-writer":["написание MD"], "material-reviewer":["материала"]},
+      whyT:"Выбор: material-writer — «написание MD»",
+      whyD:"Витрина material-writer совпала всей формулировкой: «написание MD» ↔ «напиши … в Markdown». У material-reviewer совпало лишь слово «материала» — слабее: его витрина «ревью материала» про проверку, а не про написание. Selection сравнивает витрины между собой и берёт сильнейшее совпадение с задачей."},
+    links:{task:"Проверь ссылки в новой заметке",
+      winner:"material-link-checker",
+      marks:{"material-link-checker":["проверка ссылок"]},
+      whyT:"Выбор: material-link-checker — «проверка ссылок»",
+      whyD:"Почти дословное совпадение задачи с витриной — идеальный случай: «проверка ссылок» ↔ «проверь ссылки». Чем точнее витрина описывает свою работу, тем увереннее выбор и тем меньше шансов, что позовут не того."},
+    general:{task:"Задача общая, рамок нет — просто сделай",
+      winner:"general",
+      marks:{general:["широкие права"]},
+      whyT:"Выбор: general — «широкие права»",
+      whyD:"Общая формулировка без специфики не совпала ни с одной специализированной витриной — зато совпала с общей: «широкие права». general и задуман как агент «на всё» (сам субагентов запускать не может). Обратная сторона той же медали: расплывчатое описание — расплывчатую витрину или расплывчатую задачу Selection просто не матчит, и субагента не позовут."}
+  };
+
+  var gen=0,timers=[];
+  function later(ms,fn){var g=gen;var t=setTimeout(function(){if(g===gen)fn();},ms);timers.push(t);}
+  function clearAll(){gen++;timers.forEach(clearTimeout);timers=[];}
+
+  function markDesc(desc,frags){
+    if(!frags)return desc;
+    var out=desc;
+    frags.forEach(function(f){out=out.split(f).join('<mark>'+f+'</mark>');});
+    return out;
+  }
+  function beamTo(el,label,pulse){
+    var beam=$("selBeam");
+    beam.style.left=(el.offsetLeft+el.offsetWidth/2)+"px";
+    beam.style.top=(el.offsetTop-11)+"px";
+    if(label)beam.textContent=label;
+    if(pulse){beam.classList.remove("land");void beam.offsetWidth;beam.classList.add("land");}
+  }
+  function setWhy(t,d){$("selWhyT").innerHTML=t;$("selWhyD").innerHTML=d;}
+
+  function run(key){
+    var T=TASKS[key];if(!T)return;
+    clearAll();
+    Array.prototype.forEach.call(document.querySelectorAll("#selTasks .chip"),function(c){
+      c.classList.toggle("active",c.getAttribute("data-t")===key);
+    });
+    $("selTaskBox").textContent="«"+T.task+"»";
+    AGENTS.forEach(function(a){
+      var el=$("selc-"+a.id);
+      el.classList.remove("dim","matched","winner");
+      el.querySelector(".sel-pick").classList.remove("show");
+      el.querySelector(".sel-desc").innerHTML=markDesc(a.desc,T.marks[a.id]);
+      if(T.marks[a.id])el.classList.add("matched");else el.classList.add("dim");
+    });
+    var matched=AGENTS.filter(function(a){return T.marks[a.id];}).map(function(a){return a.id;});
+    $("selStat").innerHTML='<span class="badge neutral">совпало витрин: '+matched.length+' из '+AGENTS.length+'</span>';
+    setWhy("Сканирую витрины…","primary-агент читает description каждого агента и сравнивает с задачей…");
+    var beam=$("selBeam");
+    beam.style.display="block";beam.style.opacity="1";beam.classList.remove("ok");
+    beam.textContent="читаю витрины…";
+    var seq=matched.filter(function(id){return id!==T.winner;});
+    seq.push(T.winner);
+    var t=140;
+    seq.forEach(function(id){
+      var isW=(id===T.winner);
+      later(t,function(){
+        var el=$("selc-"+id);
+        beamTo(el,isW?("▸ выбор: "+id):("читаю: "+id),isW);
+        if(isW){
+          el.classList.add("winner");
+          el.querySelector(".sel-pick").classList.add("show");
+          beam.classList.add("ok");
+          $("selStat").innerHTML+='<span class="badge ok">выбор: '+id+'</span>';
+          setWhy(T.whyT,T.whyD);
+        }
+      });
+      if(!isW)t+=360;else t+=1;
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("#selTasks .chip"),function(c){
+    c.addEventListener("click",function(){run(this.getAttribute("data-t"));});
+  });
+})();
+
+/* ================================================================
+   ИНТЕРАКТИВ 2 · Конструктор оркестратора: last-match-wins
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+
+  var MAT=["material-research-lead","material-writer","material-linker","material-link-checker","material-reviewer","material-html-publisher","material-toc","material-cleaner","material-committer","material-researcher"];
+  var ROLES={
+    "material-research-lead":"исследование (сводный бриф)",
+    "material-writer":"написание MD",
+    "material-linker":"связывание заметок",
+    "material-link-checker":"проверка ссылок",
+    "material-reviewer":"ревью материала",
+    "material-html-publisher":"HTML (опционально)",
+    "material-toc":"оглавление и теги",
+    "material-cleaner":"чистка временного",
+    "material-committer":"коммит",
+    "material-researcher":"read-only поиск · glm-5.3-flash",
+    "general":"широкие права; сам субагентов не запускает",
+    "explore":"read-only поиск"
+  };
+  var LAUNCH=MAT.concat(["general","explore"]);
+
+  function caseRules(){
+    var r=[{act:"edit",tgt:"*",eff:"deny",on:true},
+           {act:"shell",tgt:"*",eff:"deny",on:true},
+           {act:"subagent",tgt:"*",eff:"deny",on:true}];
+    MAT.forEach(function(m){r.push({act:"subagent",tgt:m,eff:"allow",on:true});});
+    return r;
+  }
+  var ST={rules:caseRules(),pin:null};
+
+  function decide(agent){ /* индексы совпавших правил, по порядку списка */
+    var m=[];
+    ST.rules.forEach(function(r,i){
+      if(r.on&&r.act==="subagent"&&(r.tgt==="*"||r.tgt===agent))m.push(i);
+    });
+    return m;
+  }
+  function lastEff(act){
+    var e=null;
+    ST.rules.forEach(function(r){if(r.on&&r.act===act&&r.tgt==="*")e=r.eff;});
+    return e;
+  }
+
+  function renderRules(){
+    var box=$("orcRules");
+    var pinM=ST.pin?decide(ST.pin):[];
+    var winI=pinM.length?pinM[pinM.length-1]:-1;
+    var h="";
+    ST.rules.forEach(function(r,i){
+      var isWin=(i===winI),isLose=(pinM.indexOf(i)>=0&&!isWin);
+      h+='<div class="orc-rule'+(r.on?"":" off")+(isWin?" win":"")+(isLose?" lose":"")+(r.flash?" new":"")+'" data-i="'+i+'">'
+        +'<span class="orc-num">#'+(i+1)+'</span>'
+        +'<span class="orc-eff">'
+        +'<button data-e="allow" class="a'+(r.eff==="allow"?" on":"")+'">allow</button>'
+        +'<button data-e="ask" class="k'+(r.eff==="ask"?" on":"")+'">ask</button>'
+        +'<button data-e="deny" class="d'+(r.eff==="deny"?" on":"")+'">deny</button>'
+        +'</span>'
+        +'<span class="orc-tgt" title="'+r.act+" "+r.tgt+'">'+r.act+' '+r.tgt+'</span>'
+        +'<span class="orc-mark">'+(isWin?"◄ last-match-wins":(isLose?"перекрыто":""))+'</span>'
+        +'<button class="orc-mv" data-mv="up"'+(i===0?" disabled":"")+'>↑</button>'
+        +'<button class="orc-mv" data-mv="down"'+(i===ST.rules.length-1?" disabled":"")+'>↓</button>'
+        +'<label class="orc-on"><input type="checkbox" data-on="1"'+(r.on?" checked":"")+'>вкл</label>'
+        +'</div>';
+      r.flash=false;
+    });
+    box.innerHTML=h;
+    if(winI>=0&&box.children[winI]){
+      box.scrollTop=box.children[winI].offsetTop-80;
+    }
+  }
+
+  var ST_TXT={allow:"✓ можно запускать",ask:"? спросит пользователя",deny:"✕ нельзя запускать",none:"— правил нет"};
+
+  function renderAgents(){
+    var h="";
+    LAUNCH.forEach(function(a){
+      var m=decide(a);
+      var st=m.length?ST.rules[m[m.length-1]].eff:"none";
+      h+='<div class="orc-agent '+st+(ST.pin===a?" pinned":"")+'" data-a="'+a+'" title="клик — показать победившее правило">'
+        +'<span class="oa-name">'+a+'</span>'
+        +'<span class="oa-role">'+ROLES[a]+'</span>'
+        +'<span class="oa-st">'+ST_TXT[st]+(m.length?" · правило #"+(m[m.length-1]+1):"")+'</span>'
+        +'</div>';
+    });
+    $("orcAgents").innerHTML=h;
+  }
+
+  function renderSum(){
+    var cnt={allow:0,ask:0,deny:0,none:0};
+    LAUNCH.forEach(function(a){
+      var m=decide(a);
+      cnt[m.length?ST.rules[m[m.length-1]].eff:"none"]++;
+    });
+    var e=lastEff("edit"),s=lastEff("shell");
+    function b(v){return '<span class="badge '+(v==="deny"?"sys":(v==="ask"?"warn":"ok"))+'">'+v+'</span>';}
+    $("orcSum").innerHTML=
+      '<span class="badge neutral">сам newton: edit → '+(e||"—")+' · shell → '+(s||"—")+'</span>'
+      +'<span class="badge ok">allow: '+cnt.allow+'</span>'
+      +'<span class="badge warn">ask: '+cnt.ask+'</span>'
+      +'<span class="badge sys">deny: '+cnt.deny+'</span>'
+      +(cnt.none?'<span class="badge neutral">без правила: '+cnt.none+'</span>':'');
+  }
+
+  function renderWhy(){
+    var box=$("orcWhy");
+    if(!ST.pin){
+      box.innerHTML='<div class="orc-why-t">Почему так?</div><p>Кликните карточку исполнителя — здесь появятся все совпавшие с его ID правила и отметка, какое из них победило (последнее совпавшее). Поменяйте порядок правил или их эффект — и победитель изменится на глазах.</p>';
+      return;
+    }
+    var a=ST.pin,m=decide(a);
+    var h='<div class="orc-why-t">'+a+' — какие правила совпали</div>';
+    if(!m.length){
+      h+='<p>Ни одно включённое правило с action <span class="mono">subagent</span> не совпало с этим ID — решения нет (серая карточка).</p>';
+    }else{
+      var win=m[m.length-1];
+      h+='<ul>';
+      m.forEach(function(ri){
+        var r=ST.rules[ri];
+        h+='<li class="'+(ri===win?"w":"l")+'">#'+(ri+1)+" "+r.eff+" "+r.act+" "+r.tgt+(ri===win?" — последнее совпавшее, побеждает":" — совпало раньше, перекрыто")+'</li>';
+      });
+      h+='</ul><p>Список читают сверху вниз; для каждого ID запоминается <b>последнее совпавшее правило — last-match-wins</b>. Поднимите перекрытое правило ниже победителя (кнопка ↓) — и решения справа перевернутся.</p>';
+    }
+    box.innerHTML=h;
+  }
+
+  function renderAll(){renderRules();renderAgents();renderSum();renderWhy();}
+
+  $("orcRules").addEventListener("click",function(ev){
+    var t=ev.target;
+    var row=t.closest?t.closest(".orc-rule"):null;
+    if(!row)return;
+    var i=parseInt(row.getAttribute("data-i"),10);
+    var e=t.getAttribute("data-e"),mv=t.getAttribute("data-mv");
+    if(e){ST.rules[i].eff=e;renderAll();}
+    else if(mv==="up"&&i>0){var r=ST.rules.splice(i,1)[0];ST.rules.splice(i-1,0,r);renderAll();}
+    else if(mv==="down"&&i<ST.rules.length-1){var r2=ST.rules.splice(i,1)[0];ST.rules.splice(i+1,0,r2);renderAll();}
+  });
+  $("orcRules").addEventListener("change",function(ev){
+    var t=ev.target;
+    if(t.getAttribute("data-on")==="1"){
+      var row=t.closest(".orc-rule");
+      var i=parseInt(row.getAttribute("data-i"),10);
+      ST.rules[i].on=t.checked;
+      renderAll();
+    }
+  });
+  $("orcAgents").addEventListener("click",function(ev){
+    var card=ev.target.closest?ev.target.closest(".orc-agent"):null;
+    if(!card)return;
+    var a=card.getAttribute("data-a");
+    ST.pin=(ST.pin===a)?null:a;
+    renderAll();
+  });
+  $("orcAdd").addEventListener("click",function(){
+    ST.rules.push({act:"subagent",tgt:$("orcNewTgt").value,eff:$("orcNewEff").value,on:true,flash:true});
+    renderAll();
+    var box=$("orcRules");box.scrollTop=box.scrollHeight;
+  });
+  $("orcReset").addEventListener("click",function(){
+    ST.rules=caseRules();ST.pin=null;renderAll();
+  });
+
+  renderAll();
+})();
+
+/* ================================================================
+   ИНТЕРАКТИВ 3 · OMO: было / стало
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var CAP={
+    was:'<b>БЫЛО (v1):</b> мультиагентность через сторонний плагин — OMO ставится в plugin-список конфига, субагентов регистрирует через plugin API v1; пресеты: explore, librarian, plan-consultant, plan-reviewer, …',
+    now:'<b>СТАЛО (V2):</b> мультиагентность нативная — агенты first-class: свой markdown-файл (<span class="mono">.opencode/agents/&lt;name&gt;.md</span>), Selection по description, permissions по роли. Плагин OMO в V2 не запускается (plugin API v1) — и больше не нужен: те же возможности без сторонней прослойки.'
+  };
+  var stage=$("omoStage");
+  /* ступенчатая задержка «встраивания» */
+  Array.prototype.forEach.call(stage.querySelectorAll(".emb"),function(el,i){
+    el.style.transitionDelay=(0.08+i*0.09)+"s";
+  });
+  function set(state){
+    stage.className="omo-stage s-"+state;
+    $("omoCap").innerHTML=CAP[state];
+    Array.prototype.forEach.call(document.querySelectorAll("#omoSeg .seg-b"),function(b){
+      b.classList.toggle("active",b.getAttribute("data-s")===state);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#omoSeg .seg-b"),function(b){
+    b.addEventListener("click",function(){set(this.getAttribute("data-s"));});
+  });
+})();
+
+})();
+</script>
+</body>
+</html>

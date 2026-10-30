@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>03. Установка и настройка OpenCode V2: клиент-серверная архитектура и слои конфигурации</title>
+<style>
+:root{
+  --bg:#f2f4f8; --card:#ffffff; --ink:#20242c; --muted:#5b6472; --faint:#8b93a3;
+  --accent:#2f5fd7; --accent-soft:#e9eefb; --accent-ink:#24489e;
+  --org:#c96f10; --org-ink:#a35608; --org-bg:#fdf3e6; --org-br:#f0d5ab;
+  --ok:#177a3e; --ok-bg:#e5f4ea; --ok-br:#bfe3cc;
+  --sys:#8c2f44; --sys-bg:#faeef1; --sys-br:#eccdd5;
+  --mdm:#6d1f3a; --mdm-bg:#f6e7ee; --mdm-br:#dfb9ca;
+  --border:#dde2ea; --border-soft:#e8ecf2;
+  --code-bg:#f5f7fa; --code-ink:#2a3140;
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono","Courier New",monospace;
+  --shadow:0 1px 2px rgba(30,37,52,.05),0 10px 26px -14px rgba(30,37,52,.14);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink)}
+a:hover{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.page{max-width:1000px;margin:0 auto;padding:6px 34px 90px}
+section{scroll-margin-top:70px}
+
+/* ---- sticky TOC ---- */
+.toc{position:sticky;top:0;z-index:60;background:rgba(242,244,248,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-soft)}
+.toc-inner{max-width:1000px;margin:0 auto;padding:8px 34px;display:flex;flex-wrap:wrap;gap:4px}
+.toc a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.toc a:hover{color:var(--accent-ink);background:var(--accent-soft)}
+.toc a.interact{color:var(--accent-ink);font-weight:600}
+.toc a.interact::before{content:"◉ ";font-size:10px;vertical-align:1px}
+
+/* ---- doc head ---- */
+.doc-head{background:linear-gradient(180deg,#ffffff,#fbfcfe);border:1px solid var(--border-soft);border-radius:16px;padding:30px 34px;margin:22px 0;box-shadow:var(--shadow)}
+.doc-tags{font-family:var(--mono);font-size:13px;color:var(--accent-ink);margin-bottom:10px}
+.doc-tags span{background:var(--accent-soft);border-radius:6px;padding:2px 8px;margin-right:6px;display:inline-block}
+h1{font-size:29px;line-height:1.25;margin:0 0 14px;letter-spacing:-.01em}
+.lead{font-size:16.5px;color:#333a46;margin:0}
+
+/* ---- sections / cards ---- */
+section.card{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:26px 32px;margin:22px 0;box-shadow:var(--shadow)}
+h2{font-size:23px;line-height:1.3;margin:0 0 14px;color:var(--ink)}
+h2 .sec-n{color:var(--accent)}
+h3{font-size:18.5px;margin:26px 0 8px}
+h4{font-size:15.5px;margin:18px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:6px 0}
+.small{font-size:13.5px;color:var(--muted)}
+code{font-family:var(--mono);font-size:.9em;background:#eef1f7;border:1px solid var(--border-soft);border-radius:5px;padding:1px 5px;color:#33405e}
+pre.code{background:var(--code-bg);border:1px solid var(--border-soft);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:13.4px;line-height:1.62;color:var(--code-ink);margin:14px 0}
+pre.code code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14.3px;margin:14px 0;background:#fff}
+th{background:#eef1f6;text-align:left;font-weight:600;color:#3a4353;padding:9px 12px;border:1px solid var(--border-soft)}
+td{border:1px solid var(--border-soft);padding:9px 12px;vertical-align:top}
+tbody tr:nth-child(even){background:#fafbfd}
+
+/* ---- glossary ---- */
+dl.gloss{margin:12px 0;display:grid;grid-template-columns:250px 1fr;gap:8px 18px}
+dl.gloss dt{font-weight:700;color:var(--accent-ink)}
+dl.gloss dd{margin:0;color:#333a46}
+dl.gloss dt,dl.gloss dd{padding:6px 0;border-bottom:1px dashed var(--border-soft)}
+
+/* ---- notes / badges ---- */
+.note{background:#f2f6ff;border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.8px;color:#2c3550}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:4px 13px;border-radius:99px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.badge.warn{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.badge.neutral{background:#eef1f6;color:#3a4353;border:1px solid var(--border)}
+.badge.sys{background:var(--sys-bg);color:var(--sys);border:1px solid var(--sys-br)}
+
+/* ---- viz common ---- */
+.viz{border:1.5px solid #b9c9ec;border-radius:16px;background:linear-gradient(180deg,#fdfeff,#f8fafd);padding:24px 28px;margin:26px 0;box-shadow:var(--shadow);scroll-margin-top:70px}
+.viz-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#2f5fd7,#5b83e8);border-radius:6px;padding:3px 10px;margin-bottom:10px}
+.viz h3{margin:0 0 6px;font-size:20px}
+.viz-hint{font-size:14px;color:var(--muted);margin:4px 0 16px}
+.viz-note{font-size:13.5px;color:var(--muted);margin:16px 0 0;padding-top:12px;border-top:1px dashed var(--border)}
+
+/* buttons / chips */
+.btn{font:600 14px/1.2 inherit;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:9px 16px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#2750bd;color:#fff}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.chip{font-family:inherit;font-weight:600;font-size:13.5px;line-height:1.2;color:#39404d;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;cursor:pointer;transition:all .12s}
+.chip:hover{border-color:var(--accent)}
+.chip.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---- static flow diagrams ---- */
+.flow{border:1px solid var(--border-soft);border-radius:13px;background:linear-gradient(#fbfcfe,#f5f7fb);padding:20px 24px;margin:16px 0;font-size:13.8px}
+.flow-cap{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:12px}
+.fnode{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:8px 14px;text-align:center;font-weight:600;color:#333a46;max-width:460px;margin:0 auto}
+.fnode.accent{background:var(--accent-soft);border-color:#c6d4f2;color:var(--accent-ink)}
+.fnode small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.varrow{display:flex;flex-direction:column;align-items:center;padding:2px 0;color:#aab3c2}
+.varrow .vline{width:2px;height:12px;background:#c3ccda}
+.cl-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.cl-row .fnode{flex:1;min-width:170px;max-width:215px}
+.cl-arrows{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;color:#aab3c2;font-weight:700;padding:5px 0}
+.cl-arrows span{flex:1;min-width:170px;max-width:215px;text-align:center}
+
+/* ================= VIZ: лифт discovery ================= */
+.ev-grid{display:grid;grid-template-columns:452px 1fr;gap:20px;align-items:start}
+.ev-house{border:1px solid var(--border-soft);border-radius:14px;background:linear-gradient(#fbfcfe,#f2f5fa);padding:14px 16px 16px}
+.ev-h-cap{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin:0 0 8px}
+.ev-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.ev-zone-lab{font-size:11px;font-weight:800;color:var(--sys);text-transform:uppercase;letter-spacing:.06em;border-top:1px dashed var(--sys-br);padding-top:7px;margin-bottom:7px}
+.ev-zone-lab.dev{color:#3d7a4f;border-top-color:#bfe3cc}
+.ev-sys-conn{font-size:11px;font-weight:700;color:var(--sys);text-align:center;padding-top:6px}
+.ev-main{display:grid;grid-template-columns:124px 1fr;gap:13px;margin-top:2px}
+.ev-side{display:flex;flex-direction:column;gap:8px;padding-top:26px}
+.ev-side .ev-f-path{font-size:10.5px;word-break:break-all}
+.ev-side-lab{font-size:10.5px;font-weight:700;color:var(--faint);line-height:1.4}
+.ev-legend{font-size:11px;font-weight:600;color:var(--muted);line-height:1.9;border:1px dashed var(--border);border-radius:10px;padding:7px 10px;background:#fbfcfe}
+.ev-legend i{width:9px;height:9px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px}
+.ev-legend .lb{background:#2f5fd7}
+.ev-legend .lo{background:var(--org)}
+.ev-legend .lg{background:#8f9bb3}
+
+.ev-floor{position:relative;border:1.5px solid var(--border);border-radius:11px;background:#fff;padding:8px 11px;cursor:pointer;transition:border-color .25s,background .25s,box-shadow .25s;min-height:56px}
+.ev-floor:hover{border-color:var(--accent)}
+.ev-floor.cabAt{box-shadow:0 0 0 3px rgba(47,95,215,.18)}
+.ev-floor.sel{box-shadow:0 0 0 3px rgba(201,111,16,.28)}
+.ev-f-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ev-f-role{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:800}
+.ev-f-path{font:700 12.5px var(--mono);color:#2a3140}
+.ev-f-files{margin-top:5px;display:flex;gap:5px;flex-wrap:wrap}
+.ev-fchip{font:600 10.5px var(--mono);border:1px dashed #c3cfe0;border-radius:6px;padding:2px 7px;color:var(--muted);background:#fbfcfe;transition:all .3s}
+.ev-fchip.none{opacity:.6}
+.ev-fchip.got0{border:1.5px solid #8f9bb3;background:#eef1f6;color:#4a5262}
+.ev-fchip.got1{border:1.5px solid #2f5fd7;background:#e4ecfc;color:#24489e}
+.ev-fchip.got2{border:1.5px solid var(--org);background:var(--org-bg);color:var(--org-ink)}
+.ev-floor.hit0{border-color:#8f9bb3;background:#f4f6fa}
+.ev-floor.hit1{border-color:#2f5fd7;background:#f2f7ff}
+.ev-floor.hit2{border-color:var(--org);background:#fdf6ec}
+.ev-floor.sysf{border-style:solid;border-color:var(--sys-br);background:var(--sys-bg);margin:0 0 8px}
+.ev-floor.sysf .ev-f-role{color:var(--sys)}
+.ev-floor.sysf.hit0{border-color:var(--sys)}
+.ev-floor.base{position:relative}
+.ev-floor.base::after{content:"";position:absolute;right:-15px;top:50%;width:14px;border-top:2px dashed #c3cfe0}
+.ev-floor.base.hit0{border-color:#8f9bb3}
+.ev-curtag{font:800 10px var(--mono);background:var(--ok-bg);border:1px solid var(--ok-br);color:var(--ok);border-radius:6px;padding:1px 7px}
+
+.ev-shaftwrap{position:relative;padding-left:66px;display:flex;flex-direction:column;gap:9px}
+.ev-shaftwrap::before{content:"";position:absolute;left:31px;top:6px;bottom:6px;border-left:2px dashed #d5dcea}
+.ev-cab{position:absolute;left:1px;width:61px;border:1.5px solid var(--accent);border-radius:9px;background:#fff;box-shadow:var(--shadow);transition:top .95s ease-in-out;padding:4px 3px 5px;text-align:center;pointer-events:none;z-index:5}
+.ev-cab .ev-cab-t{font:800 8.5px var(--mono);letter-spacing:.05em;color:var(--accent-ink);display:block}
+.ev-cab .ev-cab-dir{font-size:10px;line-height:1;color:var(--accent);display:block;margin:2px 0}
+.ev-cab .ev-cab-ph{font:700 8.5px var(--mono);color:var(--muted);display:block;line-height:1.25;min-height:11px}
+.ev-cab .ev-cab-chips{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:3px;min-height:7px}
+.ev-cab .ev-cab-chips i{width:7px;height:7px;border-radius:2px;display:block}
+.ev-cab .ev-cab-chips i.b{background:#2f5fd7}
+.ev-cab .ev-cab-chips i.o{background:var(--org)}
+.ev-cab .ev-cab-chips i.g{background:#8f9bb3}
+
+/* правая колонка */
+.ev-right{display:flex;flex-direction:column;gap:13px;min-width:0}
+.ev-cap{border:1px solid var(--border-soft);border-radius:12px;background:#fff;padding:12px 16px}
+.ev-cap .ev-ct{display:block;font-weight:800;font-size:14.5px;color:var(--accent-ink);margin-bottom:3px}
+.ev-cap .ev-cd{display:block;font-size:13.5px;color:#333a46}
+.tp-dots{display:flex;gap:5px;align-items:center;justify-content:flex-end;margin-top:9px;flex-wrap:wrap}
+.tp-dots i{width:8px;height:8px;border-radius:50%;background:#dfe4ec;transition:background .2s;font-style:normal}
+.tp-dots i.on{background:var(--accent)}
+.ev-panel{border:1px solid var(--border-soft);border-radius:13px;background:#fff;padding:12px 15px}
+.ev-panel-h{font:800 11px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px}
+.ev-layers{display:flex;flex-direction:column;gap:7px;min-height:56px}
+.ev-empty{font-size:12.5px;color:var(--faint);font-style:italic;padding:12px 4px}
+.ev-layer{border:1.5px solid var(--border);border-left-width:5px;border-radius:10px;padding:7px 10px;background:#fff;transition:border-color .2s}
+.ev-layer:hover{border-color:var(--accent);border-left-width:5px}
+.ev-layer.blue{border-left-color:#2f5fd7}
+.ev-layer.orange{border-left-color:var(--org)}
+.ev-layer.sysl{border-left-color:var(--sys)}
+.ev-layer.mdml{border-left-color:var(--mdm)}
+.ev-layer.new{animation:evpop .5s}
+@keyframes evpop{0%{transform:translateX(-10px);opacity:0}70%{transform:translateX(2px)}100%{transform:none;opacity:1}}
+.ev-l-head{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+.ev-l-tag{font:800 11px var(--mono)}
+.ev-l-tag.tb{color:#24489e}
+.ev-l-tag.to{color:var(--org-ink)}
+.ev-l-tag.ts{color:var(--sys)}
+.ev-l-path{font:600 10.5px var(--mono);color:var(--muted)}
+.ev-l-keys{margin-top:3px}
+.ev-k{font:600 11px var(--mono);border:1px solid var(--border);border-radius:6px;padding:1px 7px;margin:2px 3px 0 0;display:inline-block;background:#f7f9fc;transition:all .3s}
+.ev-k.win{border-color:#9fd4b4;background:#eaf6ef;color:#116330;font-weight:800}
+.ev-k.dead{text-decoration:line-through;opacity:.45}
+.ev-k.kill{animation:evkill 1.4s}
+@keyframes evkill{0%{background:#fdeceb;border-color:#f2c7c2;color:#c23a2b;opacity:1;text-decoration:none;transform:scale(1.06)}100%{}}
+.ev-k.by{background:#fdeceb;border-color:#f2c7c2;color:#c23a2b;text-decoration:line-through;opacity:1}
+.ev-eff{margin-top:11px;border-top:1px dashed var(--border);padding-top:9px}
+.eff-row{display:flex;gap:9px;align-items:baseline;padding:3px 0;flex-wrap:wrap}
+.eff-k{font:800 11.5px var(--mono);color:#33405e;min-width:148px}
+.eff-v{font:700 11.5px var(--mono);color:#116330;background:var(--ok-bg);border:1px solid var(--ok-br);border-radius:6px;padding:1px 7px}
+.eff-src{font:600 10.5px var(--mono);color:var(--muted)}
+.eff-src i{width:8px;height:8px;border-radius:2px;display:inline-block;vertical-align:-1px;margin-right:4px}
+.eff-src i.d-b{background:#2f5fd7}
+.eff-src i.d-o{background:var(--org)}
+.eff-src i.d-g{background:#8f9bb3}
+.eff-src i.d-s{background:var(--sys)}
+.eff-src i.d-m{background:var(--mdm)}
+
+.ev-pyr{border:1px solid var(--border-soft);border-radius:13px;background:linear-gradient(#fbfcfe,#f3f6fb);padding:12px 15px}
+.pyr-row{margin:5px auto 0;border-radius:9px;padding:6px 12px;text-align:center;font-weight:800;font-size:13px;line-height:1.35;border:1.5px solid;background:#fff;transition:all .3s}
+.pyr-row small{display:block;font-weight:600;font-size:10.5px;opacity:.85}
+.pyr-g{width:100%;border-color:var(--border);background:#f2f4f8;color:#4a5262}
+.pyr-r{width:86%;border-color:#c6d4f2;background:#e9eefb;color:#24489e}
+.pyr-p{width:72%;border-color:var(--accent);background:#dfe9fc;color:var(--accent-ink)}
+.pyr-s{width:58%;border-color:#d8a3b0;background:var(--sys-bg);color:var(--sys)}
+.pyr-m{width:46%;border-color:var(--mdm-br);background:var(--mdm-bg);color:var(--mdm)}
+.pyr-row.ghost{border-style:dashed;background:transparent;color:var(--faint);font-weight:600}
+.pyr-formula{font:800 13px var(--mono);text-align:center;margin-top:10px;color:var(--accent-ink)}
+.pyr-formula small{display:block;font:600 10.5px var(--mono);color:var(--muted);margin-top:2px}
+
+.ev-card{border:1px solid var(--border-soft);border-radius:13px;background:#fff;padding:12px 16px;min-height:74px}
+.ev-card h4{margin:0 0 6px;font-size:14.5px}
+.ev-card .ev-cd{font-size:13.5px;color:#333a46;margin:6px 0 0}
+.ev-switch{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;cursor:pointer;user-select:none;margin-left:auto}
+.ev-switch input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+
+/* ---- links ---- */
+.links ul{list-style:none;padding:0}
+.links li{padding:7px 0;border-bottom:1px dashed var(--border-soft);font-size:14.5px}
+.links li:last-child{border-bottom:none}
+.links .lnk-desc{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.ext::after{content:" ↗";font-size:12px;color:var(--faint)}
+footer{margin-top:34px;text-align:center;color:var(--faint);font-size:12.5px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#glossary">Глоссарий</a>
+    <a href="#install">Что ставится</a>
+    <a href="#worlds">Два конфиг-мира</a>
+    <a href="#layers">Слои конфигурации</a>
+    <a href="#discovery">Discovery и слияние</a>
+    <a href="#viz-lift" class="interact">Лифт конфигов</a>
+    <a href="#hotreload">Hot-reload</a>
+    <a href="#secrets">Секреты</a>
+    <a href="#summary">Резюме</a>
+    <a href="#links">Ссылки</a>
+  </div>
+</nav>
+
+<main class="page">
+
+<header class="doc-head">
+  <div class="doc-tags"><span>#AI_gen</span><span>#opencode</span><span>#ai-agents</span></div>
+  <h1>03. Установка и настройка OpenCode V2: клиент-серверская архитектура и слои конфигурации</h1>
+  <p class="lead">«Настроить OpenCode V2» — значит ответить на два вопроса. Первый: <b>что вообще стоит</b> между вами и моделью — а стоит там один бинарник, несколько тонких клиентов и общий фоновый сервер (shared background service). Второй: <b>откуда берётся эффективный конфиг</b> — не из одного файла, а из системы слоёв, которая сливается на лету. Это вторая заметка цикла: рамка «что изменилось и как мигрировать» — в <a href="02_opencode-v1-vs-v2.md">02. OpenCode v1 vs V2</a>; здесь спускаемся на уровень ниже — что ставится и как устроена настройка. Источники фактов — <a href="https://opencode.ai/v2/docs/config" target="_blank" rel="noopener" class="ext">OpenCode V2 config docs</a> и <a href="https://opencode.ai/v2/docs/cli" target="_blank" rel="noopener" class="ext">OpenCode CLI docs</a>; общая точка входа — <a href="https://opencode.ai/v2/docs/" target="_blank" rel="noopener" class="ext">OpenCode V2 docs</a>.</p>
+</header>
+
+<!-- ============================ ГЛОССАРИЙ ============================ -->
+<section class="card" id="glossary">
+  <h2><span class="sec-n">·</span> Мини-глоссарий</h2>
+  <dl class="gloss">
+    <dt>background service</dt><dd>единый фоновый сервер на учётную запись: владеет сессиями, конфигурацией, интеграциями, permissions и исполнением инструментов; тонкие клиенты — «окна» в один и тот же сервер.</dd>
+    <dt><code>opencode.json</code> vs <code>cli.json</code></dt><dd>два разных конфиг-мира: первый — сервер и проект, второй — терминальный клиент; клиентские настройки относятся только к терминальным клиентам и отдельны от серверных/проектных.</dd>
+    <dt>прямой конфиг vs <code>.opencode</code>-конфиг</dt><dd><code>opencode.json(c)</code>, лежащий в каталоге напрямую, против <code>opencode.json(c)</code>, спрятанного в <code>.opencode/</code>; при слиянии каждый <code>.opencode</code>-конфиг перекрывает каждый прямой.</dd>
+    <dt>Location</dt><dd>рабочая рамка проектной локации: каталог, от которого стартует сессия; не обязательно корень git-репозитория.</dd>
+    <dt>hot-reload</dt><dd>применение конфигурации без перезапуска: OpenCode наблюдает за файлами и перезагружает компоненты после сохранения.</dd>
+    <dt>managed preferences / policies</dt><dd>настройки macOS MDM, перекрывающие всё остальное; ограничения администратора выражаются policies, а не обычными настройками.</dd>
+  </dl>
+</section>
+
+<!-- ============================ ЧТО СТАВИТСЯ ============================ -->
+<section class="card" id="install">
+  <h2><span class="sec-n">·</span> Что вообще ставится: один бинарник и тонкие клиенты</h2>
+  <p>Установка V2 концептуально проста: <b>один бинарник <code>opencode</code></b>. Side-by-side с v1 он не ставится — что из этого следует для переезда, разобрано в заметке 02. Поверх бинарника живут клиенты — разные «окна» в один и тот же сервер:</p>
+
+  <div class="flow">
+    <div class="flow-cap">Клиенты вокруг общего фонового сервера</div>
+    <div class="cl-row">
+      <div class="fnode">TUI<small>основной терминальный интерфейс</small></div>
+      <div class="fnode">opencode mini<small>минимальный интерфейс — когда основного много</small></div>
+      <div class="fnode">opencode run<small>неинтерактивный прогон: скрипты и CI</small></div>
+      <div class="fnode">web · opencode pair<small>браузерное окно в ту же сессию</small></div>
+    </div>
+    <div class="cl-arrows"><span>↓</span><span>↓</span><span>↓</span><span>↓</span></div>
+    <div class="fnode accent" style="max-width:560px;font-size:15px;padding:12px 20px">SHARED BACKGROUND SERVICE<small>сессии · конфигурация · permissions · интеграции · исполнение инструментов</small></div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode" style="max-width:560px">opencode service<small>служебные команды управления сервером: restart, status, …</small></div>
+    <p class="small" style="text-align:center;margin:12px 0 0">клиенты приходят и уходят — сервер один и живёт дольше всех</p>
+  </div>
+
+  <ul>
+    <li><b>TUI</b> — основной терминальный интерфейс;</li>
+    <li><b><code>opencode mini</code></b> — минимальный интерфейс на случай, когда основного много;</li>
+    <li><b><code>opencode run</code></b> — неинтерактивный прогон промпта: для скриптов и CI;</li>
+    <li><b>web через <code>opencode pair</code></b> — браузерное окно в ту же сессию.</li>
+  </ul>
+  <p>Отдельная служебная группа — <b><code>opencode service</code></b>: команды управления фоновым сервером (например, <code>restart</code> или <code>status</code>). Логика простая: клиенты приходят и уходят, сервер — один.</p>
+</section>
+
+<!-- ============================ ДВА КОНФИГ-МИРА ============================ -->
+<section class="card" id="worlds">
+  <h2><span class="sec-n">·</span> Два конфиг-мира: <code>opencode.json</code> и <code>cli.json</code></h2>
+  <p>Главное, что нужно понять про настройку V2: конфигураций <b>две и они не смешиваются</b> — это прямое следствие клиент-серверной архитектуры. Сервер и проект настраиваются одним миром, терминальный клиент — другим (<a href="https://opencode.ai/v2/docs/cli/config" target="_blank" rel="noopener" class="ext">CLI configuration docs</a>):</p>
+
+  <table>
+    <thead>
+      <tr><th></th><th><code>opencode.json(c)</code> — мир сервера и проекта</th><th><code>cli.json</code> — мир терминального клиента</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>Кто читает</b></td><td>background service</td><td>TUI-клиент; настройки клиента относятся только к терминальным клиентам и отдельны от серверных/проектных настроек <code>opencode.json</code></td></tr>
+      <tr><td><b>Где живёт</b></td><td>слои: системный → глобальный → проектный (прямые и <code>.opencode</code>)</td><td>один глобальный <code>~/.config/opencode/cli.json</code>; проектного клиентского конфига в V2 нет</td></tr>
+      <tr><td><b>Что настраивает</b></td><td>модель, <code>default_agent</code>, permissions, agents, mcp, …</td><td>темы, ввод, табы, диффы, звуки, keybinds, mini, TUI-плагины</td></tr>
+      <tr><td><b>Схема (<code>$schema</code>)</b></td><td><code>https://opencode.ai/config.json</code></td><td><code>https://opencode.ai/v2/cli.json</code></td></tr>
+      <tr><td><b>Переопределение поверх</b></td><td>—</td><td>переменная <code>OPENCODE_CLI_CONFIG_CONTENT</code> — JSON поверх глобального</td></tr>
+    </tbody>
+  </table>
+
+  <p>В v1 у терминального клиента были слоёные <code>tui.json</code> — в V2 от них остались только воспоминания и один глобальный <code>cli.json</code> (история этого breaking change — в заметке 02).</p>
+
+  <p>Две детали мира <code>opencode.json</code>:</p>
+  <ul>
+    <li><b><code>default_agent</code></b> задаёт primary-агента для новых сессий; но смена настройки не заменяет агента, уже сохранённого в существующей сессии (подробно про агентов — заметка 04 цикла).</li>
+    <li>экспериментальные флаги собраны под одним зонтиком <code>experimental</code> — пять живых: <code>todo</code>, <code>subagent_depth</code> (по умолчанию 1), <code>background_compaction</code>, <code>location_idle_timeout</code>, <code>portable_shell_scanner</code>, плюс депрекированный <code>experimental.policies</code>. Всё в одном месте, а не россыпью по конфигу.</li>
+  </ul>
+</section>
+
+<!-- ============================ СЛОИ КОНФИГУРАЦИИ ============================ -->
+<section class="card" id="layers">
+  <h2><span class="sec-n">·</span> Слои конфигурации: от машины до вложенного пакета</h2>
+  <p>Мир <code>opencode.json</code> — матрёшка из четырёх слоёв. Формат везде JSON/JSONC: комментарии и trailing commas разрешены, а поле <code>$schema: "https://opencode.ai/config.json"</code> даёт валидацию и автодополнение в редакторе.</p>
+
+  <table>
+    <thead><tr><th>Слой</th><th>Локация</th><th>Роль</th></tr></thead>
+    <tbody>
+      <tr><td><b>Системный</b></td><td><code>/Library/Application Support/opencode</code> (macOS) · <code>/etc/opencode</code> (Linux) · <code>%ProgramData%\opencode</code> (Windows)</td><td>работает как глобальный, но перекрывает его и все проектные слои; дополнительно раздаёт каталоги <code>agents/</code>, <code>commands/</code>, <code>skills/</code>, <code>plugins/</code> всем пользователям машины</td></tr>
+      <tr><td><b>Managed preferences (macOS MDM)</b></td><td>—</td><td>перекрывают всё; ограничения админа выражаются <code>policies</code>, а не обычными настройками</td></tr>
+      <tr><td><b>Глобальный</b></td><td><code>~/.config/opencode/opencode.json(c)</code></td><td>на все проекты пользователя</td></tr>
+      <tr><td><b>Проектный</b></td><td><code>opencode.json(c)</code> или <code>.opencode/opencode.json(c)</code> в любом каталоге</td><td>включая вложенные пакеты monorepo</td></tr>
+    </tbody>
+  </table>
+
+  <p>Первые два слоя — территория администратора машины: системный каталог не только добавляет настройки, но и распространяет готовых агентов, команды, скиллы и плагины на всех пользователей; MDM-слой жёстче всех. Последние два — территория разработчика.</p>
+</section>
+
+<!-- ============================ DISCOVERY И СЛИЯНИЕ ============================ -->
+<section class="card" id="discovery">
+  <h2><span class="sec-n">·</span> Discovery и слияние: лифт вверх по каталогам</h2>
+  <p>Как V2 собирает эффективный конфиг? При обычном обнаружении он идёт <b>от текущего каталога вверх по предкам до корня файловой системы</b> — включая каталоги выше корня git-репозитория. Найденные конфиги сливаются в два прохода: сначала прямые (от дальнего предка к текущему), затем <code>.opencode</code>-конфиги в том же порядке:</p>
+
+  <!-- ==================== КЛЮЧЕВОЙ ИНТЕРАКТИВ: ЛИФТ ==================== -->
+  <div class="viz" id="viz-lift">
+    <div class="viz-tag">Ключевой интерактив</div>
+    <h3>Лифт discovery: два прохода по дому каталогов и слияние слоёв</h3>
+    <p class="viz-hint">Сессия стартует в <span class="mono">…/monorepo/apps/api</span>. Нажмите «▶ Играть»: лифт поднимется от текущего каталога до корня ФС, собирая прямые <span class="mono">opencode.json(c)</span> (фаза 1, синий), затем вернётся и сделает второй проход по <span class="mono">.opencode/</span> (фаза 2, оранжевый). Справа слои накладываются в эффективный конфиг, в финале — пирамида приоритетов. Кликайте по этажам и слоям; тумблер ниже включает системный уровень и MDM.</p>
+
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-primary" id="evPlay">▶ Играть</button>
+      <button class="btn" id="evStep">⏭ Шаг</button>
+      <button class="btn" id="evReset">↺ Сброс</button>
+      <div class="chip-row" id="evSpeed">
+        <button class="chip" data-s="0.5">0.5×</button>
+        <button class="chip active" data-s="1">1×</button>
+        <button class="chip" data-s="1.5">1.5×</button>
+        <button class="chip" data-s="2">2×</button>
+      </div>
+      <label class="ev-switch"><input type="checkbox" id="evSys"> <span>Показать системные слои</span></label>
+    </div>
+
+    <div class="ev-grid">
+      <!-- левая колонка: дом каталогов -->
+      <div class="ev-house">
+        <div class="ev-h-cap">Дом каталогов · вверх от текущего до корня ФС</div>
+        <div class="ev-status">
+          <span class="badge neutral" id="evPhase">фаза: —</span>
+          <span class="badge neutral" id="evStops">остановок: 0/4</span>
+        </div>
+
+        <div class="ev-syswrap hidden" id="evSysWrap">
+          <div class="ev-zone-lab">территория администратора машины</div>
+          <div class="ev-floor sysf" id="fl-mdm" data-floor="mdm">
+            <div class="ev-f-top"><span class="ev-f-role">managed preferences · macOS MDM</span></div>
+            <span class="ev-f-path">policies</span>
+            <div class="ev-f-files"><span class="ev-fchip none">ограничения администратора, не обычные настройки</span></div>
+          </div>
+          <div class="ev-floor sysf" id="fl-sys" data-floor="sys">
+            <div class="ev-f-top"><span class="ev-f-role">системный уровень</span></div>
+            <span class="ev-f-path" style="font-size:10.5px">/etc/opencode · %ProgramData%\opencode · /Library/Application Support/opencode</span>
+            <div class="ev-f-files"><span class="ev-fchip" data-layer="sys">opencode.json</span></div>
+          </div>
+          <div class="ev-sys-conn">↓ перекрывают всю цепочку ниже ↓</div>
+        </div>
+
+        <div class="ev-zone-lab dev">территория разработчика</div>
+        <div class="ev-main">
+          <div class="ev-side">
+            <div class="ev-side-lab">глобальный уровень — отдельный боковой этаж, не в цепочке предков</div>
+            <div class="ev-floor base" id="fl-glob" data-floor="glob">
+              <div class="ev-f-top"><span class="ev-f-role">global · на все проекты</span></div>
+              <span class="ev-f-path">~/.config/opencode</span>
+              <div class="ev-f-files"><span class="ev-fchip" data-layer="glob">opencode.json</span></div>
+            </div>
+            <div class="ev-legend">
+              <i class="lb"></i> фаза 1 · прямые<br>
+              <i class="lo"></i> фаза 2 · .opencode/<br>
+              <i class="lg"></i> база · global
+            </div>
+          </div>
+          <div class="ev-shaftwrap" id="evShaft">
+            <div class="ev-floor" id="fl-root" data-floor="root">
+              <div class="ev-f-top"><span class="ev-f-role">корень файловой системы</span><span class="ev-f-path">/</span></div>
+              <div class="ev-f-files"><span class="ev-fchip none">конфигов нет</span></div>
+            </div>
+            <div class="ev-floor" id="fl-anc" data-floor="anc">
+              <div class="ev-f-top"><span class="ev-f-role">предок выше репозитория</span><span class="ev-f-path">/home/dev</span></div>
+              <div class="ev-f-files">
+                <span class="ev-fchip" data-layer="ancDir">opencode.json</span>
+                <span class="ev-fchip none">.opencode/ — нет</span>
+              </div>
+            </div>
+            <div class="ev-floor" id="fl-repo" data-floor="repo">
+              <div class="ev-f-top"><span class="ev-f-role">repo · корень git</span><span class="ev-f-path">…/monorepo</span></div>
+              <div class="ev-f-files">
+                <span class="ev-fchip" data-layer="repoDir">opencode.jsonc</span>
+                <span class="ev-fchip" data-layer="repoDot">.opencode/opencode.json</span>
+              </div>
+            </div>
+            <div class="ev-floor" id="fl-pkg" data-floor="pkg">
+              <div class="ev-f-top"><span class="ev-f-role">package · текущий каталог</span><span class="ev-curtag">⌂ Location</span></div>
+              <span class="ev-f-path">…/monorepo/apps/api</span>
+              <div class="ev-f-files">
+                <span class="ev-fchip none">прямой — нет</span>
+                <span class="ev-fchip" data-layer="pkgDot">.opencode/opencode.json</span>
+              </div>
+            </div>
+            <div class="ev-cab" id="evCab">
+              <span class="ev-cab-t">ЛИФТ</span>
+              <span class="ev-cab-dir" id="evCabDir">•</span>
+              <span class="ev-cab-ph" id="evCabPh"></span>
+              <div class="ev-cab-chips" id="evCabChips"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- правая колонка: панель + пирамида + карточка -->
+      <div class="ev-right">
+        <div class="ev-cap">
+          <div class="ev-ct" id="evCapT">Готово к запуску</div>
+          <div class="ev-cd" id="evCapD">Нажмите «▶ Играть» — лифт стартует с нижнего этажа (текущий каталог) и поднимется до корня ФС, собирая конфиги. «⏭ Шаг» продвигает анимацию на один шаг.</div>
+          <div class="tp-dots" id="evDots"></div>
+        </div>
+
+        <div class="ev-panel">
+          <div class="ev-panel-h">эффективный конфиг · слои в порядке слияния (снизу — слабейший)</div>
+          <div class="ev-layers" id="evLayers"><div class="ev-empty">панель заполнится во время проходов лифта…</div></div>
+          <div class="ev-eff hidden" id="evEff"></div>
+        </div>
+
+        <div class="ev-pyr hidden" id="evPyrBox">
+          <div class="ev-panel-h">пирамида приоритетов</div>
+          <div id="evPyr"></div>
+        </div>
+
+        <div class="ev-card" id="evCard"></div>
+      </div>
+    </div>
+
+    <p class="viz-note">Обе фазы — только территория разработчика: системный конфиг стоит над всей цепочкой и перекрывает и глобальный, и все проектные слои. Ключи в панели (<code>default_agent</code>, <code>permissions</code> и др.) — концептуальная иллюстрация наложения, не реальный конфиг-дамп. Клик по слою в панели подсвечивает настройки, которые этот слой перекрывает.</p>
+  </div>
+
+  <p>Обратите внимание на следствие: <b><code>.opencode</code>-конфиг репозитория перекрывает даже прямой конфиг вложенного пакета</b> — фаза важнее близости. Метафора: сначала голосуют все «прямые» соседи, затем все <code>.opencode</code>-каталоги имеют последнее слово.</p>
+
+  <div class="note">И важная оговорка: обе фазы схемы — только территория разработчика. <b>Системный конфиг стоит над всей цепочкой</b> и перекрывает и глобальный, и все проектные слои — если проектная настройка подозрительно «не применяется», первым делом ищите, чем её перекрыл системный слой. Ещё выше — managed preferences (MDM), перекрывающие вообще всё.</div>
+
+  <p>И про рамку поиска: <b>Location</b> — рабочая папка сессии — не обязана совпадать с корнем git-репозитория: поиск намеренно выходит выше, так что конфиги «над репо» тоже попадают в игру.</p>
+</section>
+
+<!-- ============================ HOT-RELOAD ============================ -->
+<section class="card" id="hotreload">
+  <h2><span class="sec-n">·</span> Hot-reload: конфиг без перезапуска</h2>
+  <p>Привычка времён v1: «поправил конфиг — перезапусти OpenCode» — тогда рестарт действительно требовался. В V2 конфигурация живая:</p>
+
+  <div class="flow">
+    <div class="flow-cap">Живой конфиг</div>
+    <div class="fnode">правка конфига сохранена</div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode">OpenCode наблюдает за файлами (watcher)</div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode accent">перезагрузка на лету<small>агенты · команды · скиллы · MCP-серверы · плагины · терминальный клиент также перезагружает cli.json</small></div>
+    <div class="varrow"><span class="vline"></span></div>
+    <div class="fnode">нужно принудительно перезагрузить всё сразу? → команда <span class="mono">/reload</span></div>
+  </div>
+
+  <p>Сохранили файл — компоненты перезагрузились сами; <code>/reload</code> — только для принудительной полной перезагрузки.</p>
+</section>
+
+<!-- ============================ СЕКРЕТЫ ============================ -->
+<section class="card" id="secrets">
+  <h2><span class="sec-n">·</span> Секреты без хардкода: <code>{env:}</code> и <code>{file:}</code></h2>
+  <p>Одна идея на всю тему: значение в конфиге может быть не литералом, а <b>ссылкой</b> — <code>{env:VAR}</code> подставит переменную окружения, <code>{file:path}</code> — содержимое файла. Ключи провайдеров остаются в переменных окружения или в отдельных файлах и попадают в конфиг только подстановкой — без хардкода.</p>
+
+  <pre class="code"><code>// иллюстрация механики подстановок (не реальный дамп):
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "glm-5.3",
+  "provider": {
+    "api_key": "{env:OPENCODE_API_KEY}"      // ← подставится переменная окружения
+  },
+  "instructions": ["{file:./AGENTS.md}"]     // ← подставится содержимое файла
+}</code></pre>
+</section>
+
+<!-- ============================ РЕЗЮМЕ ============================ -->
+<section class="card" id="summary">
+  <h2><span class="sec-n">·</span> Настройка одним взглядом</h2>
+  <table>
+    <thead><tr><th>Вопрос</th><th>Ответ</th></tr></thead>
+    <tbody>
+      <tr><td>Что ставится</td><td>один бинарник <code>opencode</code>; клиенты: TUI, <code>mini</code>, <code>run</code>, web (<code>pair</code>); сервером управляет <code>opencode service</code> (restart, status, …)</td></tr>
+      <tr><td>Где конфиг сервера/проекта</td><td><code>opencode.json(c)</code>: системный → глобальный → проектный (прямые и <code>.opencode</code>)</td></tr>
+      <tr><td>Где конфиг клиента</td><td>один глобальный <code>~/.config/opencode/cli.json</code>; поверх — <code>OPENCODE_CLI_CONFIG_CONTENT</code></td></tr>
+      <tr><td>Что перекрывает что</td><td>каждый <code>.opencode</code> — каждый прямой; итог доков: global &lt; repo &lt; package; над ними системный слой, ещё выше — managed preferences (MDM)</td></tr>
+      <tr><td>Формат</td><td>JSON/JSONC + <code>$schema</code> — валидация и автодополнение</td></tr>
+      <tr><td>Нужен ли рестарт после правки</td><td>нет: hot-reload агентов, команд, скиллов, MCP, плагинов; принудительно — <code>/reload</code></td></tr>
+      <tr><td>Секреты</td><td><code>{env:VAR}</code> и <code>{file:path}</code> вместо хардкода</td></tr>
+      <tr><td>Экспериментальное</td><td>один зонтик <code>experimental</code>: <code>todo</code>, <code>subagent_depth</code> (=1), <code>background_compaction</code>, <code>location_idle_timeout</code>, <code>portable_shell_scanner</code></td></tr>
+    </tbody>
+  </table>
+  <p>Картина в целом: один сервер — много окон; один мир настраивает сервер и проект (матрёшкой слоёв), другой — терминальный клиент (одним файлом); и всё это живое, без перезапусков.</p>
+</section>
+
+<!-- ============================ ССЫЛКИ ============================ -->
+<section class="card links" id="links">
+  <h2><span class="sec-n">·</span> Ссылки</h2>
+  <h3>Внутренние</h3>
+  <ul>
+    <li><a href="02_opencode-v1-vs-v2.md">02. OpenCode v1 vs V2</a><span class="lnk-desc">рамка цикла: три breaking changes (включая переезд tui.json → cli.json), side-by-side с v1 и судьба OMO; эта заметка раскрывает уровень ниже — что именно ставится и как сливаются слои конфигурации.</span></li>
+    <li><a href="../01_how-to-read-llm-architecture.md">01. Как читать архитектуру LLM-моделей</a><span class="lnk-desc">соседний трек: сама модель (config.json, внимание, MoE); полезно видеть разницу масштабов: config.json описывает «мозг», opencode.json — «упряжь» вокруг него.</span></li>
+  </ul>
+  <h3>Внешние</h3>
+  <ul>
+    <li><a href="https://opencode.ai/v2/docs/config" target="_blank" rel="noopener" class="ext">Конфигурация OpenCode V2</a><span class="lnk-desc">главный источник заметки: слои, локации, discovery и порядок слияния, hot-reload, подстановки {env:}/{file:}, experimental-флаги.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/cli" target="_blank" rel="noopener" class="ext">CLI: клиенты и background service</a><span class="lnk-desc">архитектура клиент-сервер, mini/run/pair, служебные команды opencode service.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/cli/config" target="_blank" rel="noopener" class="ext">Конфигурация терминального клиента (cli.json)</a><span class="lnk-desc">мир клиента: темы, keybinds, mini, OPENCODE_CLI_CONFIG_CONTENT.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/" target="_blank" rel="noopener" class="ext">Интро документации OpenCode V2</a><span class="lnk-desc">общая точка входа в доки V2.</span></li>
+  </ul>
+</section>
+
+<footer>
+  HTML-версия материала <a class="mono" href="03_opencode-architecture-config.md">llm_harness/opencode_v2/03_opencode-architecture-config.md</a> · автономная страница со встроенными интерактивами · работает офлайн
+</footer>
+
+</main>
+
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+
+/* ================================================================
+   ЛИФТ DISCOVERY: данные
+   ================================================================ */
+var LAYERS = [
+  {id:"glob",    ord:0, floor:"glob", phase:0, tag:"global — база",           tc:"tb", path:"~/.config/opencode/opencode.json",              cls:"blue",   dot:"d-g", keys:[["model","\"glm-5.3\""],["default_agent","\"general\""],["permissions.bash","\"ask\""],["permissions.edit","\"allow\""]]},
+  {id:"ancDir",  ord:1, floor:"anc",  phase:1, tag:"предок · прямой",          tc:"tb", path:"/home/dev/opencode.json",                          cls:"blue",   dot:"d-b", keys:[["default_agent","\"build\""]]},
+  {id:"repoDir", ord:2, floor:"repo", phase:1, tag:"repo · прямой",            tc:"tb", path:"…/monorepo/opencode.jsonc",                       cls:"blue",   dot:"d-b", keys:[["model","\"glm-5.3-flash\""],["permissions.bash","\"allow\""]]},
+  {id:"repoDot", ord:3, floor:"repo", phase:2, tag:"repo · .opencode",         tc:"to", path:"…/monorepo/.opencode/opencode.json",              cls:"orange", dot:"d-o", keys:[["default_agent","\"review\""]]},
+  {id:"pkgDot",  ord:4, floor:"pkg",  phase:2, tag:"package · .opencode",      tc:"to", path:"…/monorepo/apps/api/.opencode/opencode.json",     cls:"orange", dot:"d-o", keys:[["default_agent","\"code\""],["permissions.edit","\"ask\""]]},
+  {id:"sys",     ord:5, floor:"sys",  phase:9, tag:"системный — перекрывает все", tc:"ts", path:"/etc/opencode/opencode.json (пример, Linux)", cls:"sysl",   dot:"d-s", keys:[["permissions.bash","\"deny\""]], sys:true},
+  {id:"mdm",     ord:6, floor:"mdm",  phase:9, tag:"managed preferences (MDM)",   tc:"ts", path:"policies — ограничения администратора",        cls:"sysl mdml", dot:"d-m", keys:[["policies","{ … }"]], sys:true}
+];
+function layerById(id){ for(var i=0;i<LAYERS.length;i++) if(LAYERS[i].id===id) return LAYERS[i]; return null; }
+
+var CARDS = {
+  pkg:  {t:"package — текущий каталог (Location)", b:['<span class="badge ok">⌂ старт лифта</span>','<span class="badge neutral">monorepo-пакет</span>'],
+         x:"Нижний этаж: …/monorepo/apps/api — отсюда стартует сессия и лифт discovery. Прямого opencode.json(c) здесь нет, а в .opencode/ — есть: конфиг пакета окажется сильнейшим из проектных слоёв. Location — рабочая рамка локации — не обязан совпадать с корнем git-репозитория."},
+  repo: {t:"repo — корень git-репозитория", b:['<span class="badge neutral">…/monorepo</span>'],
+         x:"Здесь есть и прямой конфиг opencode.jsonc (JSONC: комментарии и trailing commas разрешены), и .opencode/opencode.json. Оба будут подобраны — в разных фазах. Поиск не ограничен корнем репозитория: лифт поедет ещё выше."},
+  anc:  {t:"предок выше репозитория", b:['<span class="badge neutral">/home/dev</span>'],
+         x:"Каталог-предок ВЫШЕ корня git-репозитория. Discovery намеренно выходит за пределы репо до корня ФС: конфиги «над репо» тоже попадают в игру. Внутри фазы прямых его слой сольётся первым из проектных — слабейший из проектных прямых."},
+  root: {t:"корень файловой системы", b:['<span class="badge neutral">/</span>'],
+         x:"Верхняя точка поиска: лифт разворачивается — фаза 1 закончена, фаза 2 стартует снизу. Сам этаж пустой: конфигов здесь нет."},
+  glob: {t:"global — глобальный уровень", b:['<span class="badge neutral">~/.config/opencode</span>'],
+         x:"Настройки на все проекты пользователя. Глобальный уровень не входит в цепочку предков (боковой этаж дома) и попадает в слияние первым — это слабейший слой проектной цепочки."},
+  sys:  {t:"системный уровень", b:['<span class="badge sys">перекрывает все ниже</span>'],
+         x:"Работает как глобальный, но перекрывает его и все проектные слои. Дополнительно раздаёт каталоги agents/, commands/, skills/, plugins/ всем пользователям машины. Локации: /Library/Application Support/opencode (macOS) · /etc/opencode (Linux) · %ProgramData%\\opencode (Windows)."},
+  mdm:  {t:"managed preferences (macOS MDM)", b:['<span class="badge sys">перекрывает всё</span>'],
+         x:"Самый жёсткий слой: managed preferences перекрывают вообще всё. Ограничения администратора выражаются policies, а не обычными настройками."}
+};
+
+var st = {
+  playing:false, timer:null, idx:0, gen:0, inner:[],
+  collected:{}, stops:0, speed:1, sysOn:false,
+  showEff:false, pyrOn:false, curFloor:"pkg"
+};
+
+/* ================================================================
+   вспомогательные
+   ================================================================ */
+function later(ms, fn){
+  var g = st.gen;
+  var t = setTimeout(function(){ if(g===st.gen) fn(); }, ms/st.speed);
+  st.inner.push(t);
+}
+function clearAll(){
+  st.gen++;
+  if(st.timer){ clearTimeout(st.timer); st.timer=null; }
+  st.inner.forEach(clearTimeout); st.inner=[];
+}
+function setCap(t,d){ $("evCapT").textContent=t; $("evCapD").textContent=d; }
+function setPhaseBadge(txt, cls){
+  var b=$("evPhase"); b.textContent=txt; b.className="badge "+(cls||"neutral");
+}
+function dots(n){
+  var box=$("evDots");
+  if(box.children.length!==STEPS.length){
+    box.innerHTML="";
+    for(var i=0;i<STEPS.length;i++){ var d=document.createElement("i"); box.appendChild(d); }
+  }
+  for(var k=0;k<box.children.length;k++) box.children[k].className=(k===n)?"on":"";
+}
+function addCabChip(kind){
+  var i=document.createElement("i"); i.className=kind;
+  $("evCabChips").appendChild(i);
+}
+function cabDir(a){ $("evCabDir").textContent=a; }
+function cabPhase(txt){ $("evCabPh").textContent=txt; }
+function placeCab(fid, instant, dir){
+  var fl=$("fl-"+fid), cab=$("evCab");
+  if(!fl||!cab) return;
+  st.curFloor=fid;
+  if(dir) cabDir(dir);
+  var top=fl.offsetTop+(fl.offsetHeight-cab.offsetHeight)/2;
+  if(instant){
+    cab.style.transitionDuration="0s";
+    cab.style.top=top+"px";
+    void cab.offsetHeight;
+    cab.style.transitionDuration="";
+  } else {
+    cab.style.transitionDuration=Math.min(1.15,0.95/st.speed)+"s";
+    cab.style.top=top+"px";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".ev-floor"), function(f){ f.classList.remove("cabAt"); });
+  fl.classList.add("cabAt");
+}
+
+/* ================================================================
+   панель «эффективный конфиг»
+   ================================================================ */
+function activeLayers(){
+  return LAYERS.filter(function(l){ return st.collected[l.id] || (st.sysOn && l.sys); });
+}
+function keyOwners(act){
+  var own={};
+  act.forEach(function(l){ l.keys.forEach(function(kv){ (own[kv[0]]=own[kv[0]]||[]).push(l.id); }); });
+  return own;
+}
+function renderPanel(newId){
+  var act=activeLayers(), box=$("evLayers");
+  if(!act.length){
+    box.innerHTML='<div class="ev-empty">панель заполнится во время проходов лифта…</div>';
+    $("evEff").classList.add("hidden");
+    return;
+  }
+  var own=keyOwners(act);
+  var newL=newId?layerById(newId):null;
+  var html="";
+  act.forEach(function(l){
+    html+='<div class="ev-layer '+l.cls+(l.id===newId?" new":"")+'" data-id="'+l.id+'">'
+        +  '<div class="ev-l-head"><span class="ev-l-tag '+l.tc+'">'+l.tag+'</span><span class="ev-l-path">'+l.path+'</span></div>'
+        +  '<div class="ev-l-keys">';
+    l.keys.forEach(function(kv){
+      var k=kv[0], v=kv[1];
+      var winners=own[k], win=winners[winners.length-1];
+      var isWin=(win===l.id), isDead=(win!==l.id);
+      var flash = newL && isDead && newL.keys.some(function(nkv){ return nkv[0]===k; });
+      html+='<span class="ev-k'+(isWin?" win":(isDead?" dead":""))+(flash?" kill":"")+'" data-key="'+k+'" data-layer="'+l.id+'">'+k+': '+v+'</span>';
+    });
+    html+='</div></div>';
+  });
+  box.innerHTML=html;
+  renderEff(act, own);
+}
+function renderEff(act, own){
+  var eff=$("evEff");
+  if(!st.showEff){ eff.classList.add("hidden"); return; }
+  var seen=[], seenMap={};
+  act.forEach(function(l){ l.keys.forEach(function(kv){ if(!seenMap[kv[0]]){ seenMap[kv[0]]=true; seen.push(kv[0]); } }); });
+  var html='<div class="ev-panel-h" style="margin-top:2px">итог по ключам — побеждает верхний слой</div>';
+  seen.forEach(function(k){
+    var winners=own[k], winId=winners[winners.length-1], wl=layerById(winId);
+    var val="";
+    wl.keys.forEach(function(kv){ if(kv[0]===k) val=kv[1]; });
+    html+='<div class="eff-row"><span class="eff-k">'+k+'</span><span class="eff-v">'+val+'</span>'
+        +  '<span class="eff-src"><i class="'+wl.dot+'"></i>'+wl.tag+(wl.sys?' · перекрывает все':'')+'</span></div>';
+  });
+  eff.innerHTML=html;
+  eff.classList.remove("hidden");
+}
+
+/* подсветка «перекрытых» при наведении на слой */
+$("evLayers").addEventListener("mouseover", function(e){
+  var row=e.target.closest ? e.target.closest(".ev-layer") : null;
+  if(!row) return;
+  var l=layerById(row.getAttribute("data-id")); if(!l) return;
+  var keys={}; l.keys.forEach(function(kv){ keys[kv[0]]=true; });
+  Array.prototype.forEach.call(document.querySelectorAll("#evLayers .ev-k"), function(ch){
+    var cl=layerById(ch.getAttribute("data-layer"));
+    if(cl && cl.ord<l.ord && keys[ch.getAttribute("data-key")]) ch.classList.add("by");
+  });
+});
+$("evLayers").addEventListener("mouseout", function(e){
+  Array.prototype.forEach.call(document.querySelectorAll("#evLayers .ev-k.by"), function(ch){ ch.classList.remove("by"); });
+});
+
+/* ================================================================
+   пирамида приоритетов
+   ================================================================ */
+function renderPyr(){
+  var box=$("evPyrBox");
+  if(!st.pyrOn){ box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  var h="";
+  if(st.sysOn){
+    h+='<div class="pyr-row pyr-m">managed preferences (MDM)<small>перекрывает всё · policies</small></div>';
+    h+='<div class="pyr-row pyr-s">системный слой<small>перекрывает глобальный и все проектные · agents/ commands/ skills/ plugins/ на всю машину</small></div>';
+  } else {
+    h+='<div class="pyr-row pyr-m ghost">MDM — включите тумблер «Показать системные слои»</div>';
+    h+='<div class="pyr-row pyr-s ghost">системный — включите тумблер «Показать системные слои»</div>';
+  }
+  h+='<div class="pyr-row pyr-p">package — сильнейший из проектных<small>.opencode/opencode.json в …/monorepo/apps/api</small></div>';
+  h+='<div class="pyr-row pyr-r">repo — …/monorepo<small>прямой opencode.jsonc + .opencode/opencode.json</small></div>';
+  h+='<div class="pyr-row pyr-g">global — слабейший<small>~/.config/opencode/opencode.json</small></div>';
+  h+='<div class="pyr-formula">global &lt; repo &lt; package<small>формула из доков · каждый .opencode перекрывает каждый прямой · над ними — системный слой и MDM</small></div>';
+  $("evPyr").innerHTML=h;
+}
+
+/* ================================================================
+   карточка этажа
+   ================================================================ */
+function showCard(fid){
+  var c=CARDS[fid]; if(!c) return;
+  Array.prototype.forEach.call(document.querySelectorAll(".ev-floor"), function(f){ f.classList.remove("sel"); });
+  var fl=$("fl-"+fid); if(fl) fl.classList.add("sel");
+  $("evCard").innerHTML='<h4>'+c.t+'</h4><div>'+c.b.join(" ")+'</div><p class="ev-cd">'+c.x+'</p>';
+}
+
+/* ================================================================
+   сбор конфига лифтом
+   ================================================================ */
+function collect(lid){
+  var L=layerById(lid); if(!L || st.collected[lid]) return;
+  st.collected[lid]=true;
+  var chip=document.querySelector(".ev-fchip[data-layer='"+lid+"']");
+  if(chip){
+    var gotClass = L.phase===2 ? "got2" : (L.phase===1 ? "got1" : "got0");
+    chip.className="ev-fchip "+gotClass;
+    chip.textContent=chip.textContent+" ✓";
+  }
+  var fl=$("fl-"+L.floor);
+  if(fl){
+    if(L.phase===1) fl.classList.add("hit1");
+    else if(L.phase===2) fl.classList.add("hit2");
+    else fl.classList.add(L.sys?"hit0":"hit0");
+  }
+  if(L.phase===1||L.phase===2){
+    st.stops++;
+    $("evStops").textContent="остановок: "+st.stops+"/4";
+    $("evStops").className="badge "+(L.phase===1?"neutral":"warn");
+    if(L.phase===1) setPhaseBadge("фаза 1 · прямые","neutral");
+    else setPhaseBadge("фаза 2 · .opencode","warn");
+  }
+  addCabChip(L.cls==="orange"?"o":(L.cls==="blue"?"b":"g"));
+  renderPanel(lid);
+}
+
+/* ================================================================
+   шаги анимации
+   ================================================================ */
+var STEPS = [
+  {t:"Готово к запуску", d:"Нажмите «▶ Играть» — лифт стартует с нижнего этажа (текущий каталог) и поднимется до корня ФС, собирая конфиги. «⏭ Шаг» продвигает анимацию на один шаг.", dur:0, run:null},
+
+  {t:"Старт: Location", d:"Сессия стартует в …/monorepo/apps/api — это Location, рабочая рамка проектной локации. Location не обязан совпадать с корнем git-репозитория: discovery пойдёт вверх по предкам до корня ФС — включая каталоги выше репозитория.", dur:3200, run:function(){
+    setPhaseBadge("старт","ok");
+    placeCab("pkg",true,"•"); cabPhase("старт");
+  }},
+
+  {t:"База: глобальный конфиг", d:"~/.config/opencode/opencode.json(c) — настройки на все проекты пользователя. Глобальный уровень не входит в цепочку предков (боковой этаж дома) и попадает в слияние первым — это слабейший слой.", dur:3000, run:function(){
+    setPhaseBadge("база · global","neutral"); cabPhase("база");
+    collect("glob");
+  }},
+
+  {t:"Фаза 1 — прямые opencode.json(c)", d:"Лифт едет снизу вверх и на этажах, где opencode.json(c) лежит прямо в каталоге, останавливается и подхватывает файл (подсветка синим). Найденные конфиги сольются «от дальнего предка к текущему».", dur:2800, run:function(){
+    setPhaseBadge("фаза 1 · прямые","neutral"); cabPhase("фаза 1 · прямые"); cabDir("▲");
+  }},
+
+  {t:"Остановка: repo — прямой opencode.jsonc", d:"В …/monorepo лежит прямой opencode.jsonc (JSONC: комментарии и trailing commas разрешены). Слой встал в эффективный конфиг над глобальным.", dur:3000, run:function(){
+    placeCab("repo",false,"▲");
+    later(1000,function(){ collect("repoDir"); });
+  }},
+
+  {t:"Остановка: предок выше репо — прямой opencode.json", d:"В /home/dev найден прямой opencode.json — поиск намеренно вышел выше корня git-репозитория. Слой встал НИЖЕ репозиторного: внутри фазы слияние идёт от дальнего предка к текущему, поэтому repo перекрывает предка.", dur:3200, run:function(){
+    placeCab("anc",false,"▲");
+    later(1000,function(){ collect("ancDir"); });
+  }},
+
+  {t:"До корня ФС — фаза 1 завершена", d:"Выше /home/dev и до корня файловой системы прямых конфигов больше нет. Итог фазы 1: global + два прямых. Лифт возвращается вниз — на второй проход.", dur:2600, run:function(){
+    placeCab("root",false,"▲"); cabPhase("фаза 1 · конец");
+  }},
+
+  {t:"Фаза 2 — .opencode/opencode.json(c)", d:"Лифт вернулся на нижний этаж и снова едет вверх, собирая конфиги из каталогов .opencode/ (подсветка оранжевым). Правило доков: каждый обнаруженный .opencode-конфиг перекрывает каждый прямой.", dur:2600, run:function(){
+    setPhaseBadge("фаза 2 · .opencode","warn"); cabPhase("фаза 2 · .opencode"); cabDir("▼");
+    placeCab("pkg",false,"▼");
+  }},
+
+  {t:"Остановка: package — .opencode/opencode.json", d:"Прямого конфига в package нет, а в .opencode/ — есть. Оранжевый слой лёг ПОВЕРХ всех синих: фаза важнее близости, никакой прямой конфиг его не пересилит. .opencode пакета — сильнейший из проектных.", dur:3200, run:function(){
+    later(500,function(){ collect("pkgDot"); });
+  }},
+
+  {t:"Остановка: repo — .opencode/opencode.json", d:"…/monorepo/.opencode/opencode.json — оранжевый слой репозитория. Внутри фазы 2 порядок прежний — от дальнего предка к текущему, поэтому он лёг ниже пакета, но всё равно выше всех синих.", dur:3200, run:function(){
+    placeCab("repo",false,"▲");
+    later(1000,function(){ collect("repoDot"); });
+  }},
+
+  {t:"Фаза 2 завершена", d:"Выше репозитория .opencode-каталогов нет. Остановок всего 4: два прямых + два .opencode. Обе фазы — территория разработчика: системные слои в поездке лифта не участвуют.", dur:2600, run:function(){
+    placeCab("root",false,"▲"); cabPhase("фаза 2 · конец");
+  }},
+
+  {t:"Итог — эффективный конфиг", d:"Слои в порядке слияния: global → прямой предка → прямой repo → .opencode repo → .opencode package. По каждому ключу побеждает верхний слой: перекрытые значения зачёркнуты. Ключи — концептуальная иллюстрация наложения, не реальный дамп.", dur:3400, run:function(){
+    st.showEff=true; renderPanel();
+  }},
+
+  {t:"Финал — пирамида приоритетов", d:"Формула из доков: global < repo < package — сильнейший из проектных это .opencode пакета. Над всей цепочкой системный слой (перекрывает и глобальный, и все проектные), ещё выше — managed preferences (MDM). Включите тумблер «Показать системные слои».", dur:3600, run:function(){
+    st.pyrOn=true; renderPyr();
+  }},
+
+  {t:"Готово", d:"Если проектная настройка подозрительно «не применяется» — первым делом ищите, чем её перекрыл системный слой (тумблер «Показать системные слои»). Кликайте по этажам дома и по слоям панели.", dur:0, run:function(){
+    setPhaseBadge("готово","ok"); cabPhase(""); cabDir("•");
+  }}
+];
+
+/* ================================================================
+   управление: play / pause / step / reset
+   ================================================================ */
+function stopPlay(){
+  st.playing=false;
+  $("evPlay").textContent=(st.idx>=STEPS.length-1 && st.idx>0)?"↺ Повторить":"▶ Играть";
+  if(st.timer){ clearTimeout(st.timer); st.timer=null; }
+}
+function runStep(){
+  var s=STEPS[st.idx];
+  if(!s) return;
+  if(s.run) s.run();
+  setCap(s.t,s.d);
+  dots(st.idx);
+  if(st.playing){
+    if(st.idx>=STEPS.length-1){ stopPlay(); return; }
+    st.timer=setTimeout(function(){
+      st.timer=null;
+      if(st.playing && st.idx<STEPS.length-1){ st.idx++; runStep(); }
+    },(s.dur||1200)/st.speed);
+  }
+}
+function play(){
+  if(st.playing){ stopPlay(); return; }
+  st.playing=true; $("evPlay").textContent="⏸ Пауза";
+  if(st.idx===0){ st.idx=1; runStep(); }
+  else if(st.idx>=STEPS.length-1){ reset(); st.idx=1; st.playing=true; $("evPlay").textContent="⏸ Пауза"; runStep(); }
+  else if(!st.timer){ st.idx++; runStep(); }
+}
+function reset(){
+  clearAll();
+  st.playing=false; st.idx=0; st.collected={}; st.stops=0;
+  st.showEff=false; st.pyrOn=false;
+  $("evPlay").textContent="▶ Играть";
+  /* этажи и чипы — в исходное состояние */
+  Array.prototype.forEach.call(document.querySelectorAll(".ev-floor"), function(f){ f.classList.remove("hit0","hit1","hit2","cabAt"); });
+  Array.prototype.forEach.call(document.querySelectorAll(".ev-fchip"), function(c){
+    c.className="ev-fchip"+(c.getAttribute("data-init-none")!==null && c.getAttribute("data-init-none")==="1"?" none":"");
+    c.textContent=c.getAttribute("data-init")||c.textContent.replace(" ✓","");
+  });
+  if(st.sysOn){
+    var sc=document.querySelector(".ev-fchip[data-layer='sys']");
+    if(sc){ sc.className="ev-fchip got0"; sc.textContent=sc.textContent.replace(" ✓","")+" ✓"; }
+  }
+  $("evCabChips").innerHTML="";
+  cabPhase(""); cabDir("•");
+  $("evStops").textContent="остановок: 0/4"; $("evStops").className="badge neutral";
+  setPhaseBadge("фаза: —","neutral");
+  setCap(STEPS[0].t,STEPS[0].d);
+  dots(0);
+  renderPanel();
+  renderPyr();
+  placeCab("pkg",true,"•");
+}
+$("evPlay").addEventListener("click", play);
+$("evStep").addEventListener("click", function(){
+  stopPlay();
+  if(st.idx<STEPS.length-1){ st.idx++; runStep(); }
+});
+$("evReset").addEventListener("click", function(){ reset(); });
+
+/* скорость */
+Array.prototype.forEach.call(document.querySelectorAll("#evSpeed .chip"), function(ch){
+  ch.addEventListener("click", function(){
+    document.querySelector("#evSpeed .chip.active").classList.remove("active");
+    ch.classList.add("active");
+    st.speed=parseFloat(ch.getAttribute("data-s"));
+  });
+});
+
+/* тумблер системных слоёв */
+$("evSys").addEventListener("change", function(){
+  st.sysOn=this.checked;
+  $("evSysWrap").classList.toggle("hidden",!st.sysOn);
+  var sc=document.querySelector(".ev-fchip[data-layer='sys']");
+  if(sc && st.sysOn){ sc.className="ev-fchip got0"; sc.textContent=sc.textContent.replace(" ✓","")+" ✓"; }
+  else if(sc && !st.sysOn){ sc.className="ev-fchip"; sc.textContent=sc.textContent.replace(" ✓",""); }
+  var fl=$("fl-sys"); if(fl) fl.classList.toggle("hit0",st.sysOn);
+  renderPanel();
+  renderPyr();
+});
+
+/* клики по этажам */
+Array.prototype.forEach.call(document.querySelectorAll(".ev-floor"), function(f){
+  f.addEventListener("click", function(){ showCard(this.getAttribute("data-floor")); });
+});
+
+/* сохраняем исходный текст чипов для сброса */
+Array.prototype.forEach.call(document.querySelectorAll(".ev-fchip"), function(c){
+  c.setAttribute("data-init",c.textContent);
+  if(c.classList.contains("none")) c.setAttribute("data-init-none","1");
+});
+
+/* init */
+dots(0);
+renderPanel();
+renderPyr();
+showCard("pkg");
+window.addEventListener("load", function(){ placeCab("pkg",true,"•"); });
+window.addEventListener("resize", function(){ placeCab(st.curFloor,true,null); });
+placeCab("pkg",true,"•");
+
+})();
+</script>
+</body>
+</html>

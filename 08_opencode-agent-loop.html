@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>08. Agent loop в OpenCode: когда агент останавливается и что управляет циклом</title>
+<style>
+:root{
+  --bg:#f2f4f8; --card:#ffffff; --ink:#20242c; --muted:#5b6472; --faint:#8b93a3;
+  --accent:#2f5fd7; --accent-soft:#e9eefb; --accent-ink:#24489e;
+  --org:#c96f10; --org-ink:#a35608; --org-bg:#fdf3e6; --org-br:#f0d5ab;
+  --ok:#177a3e; --ok-bg:#e5f4ea; --ok-br:#bfe3cc;
+  --sys:#8c2f44; --sys-bg:#faeef1; --sys-br:#eccdd5;
+  --viol:#6b4fa3; --viol-bg:#f0ecf7; --viol-br:#d9cfe9;
+  --no-bg:#fdeceb; --no-br:#f2c7c2; --no-ink:#c23a2b;
+  --border:#dde2ea; --border-soft:#e8ecf2;
+  --code-bg:#f5f7fa; --code-ink:#2a3140;
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono","Courier New",monospace;
+  --shadow:0 1px 2px rgba(30,37,52,.05),0 10px 26px -14px rgba(30,37,52,.14);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink)}
+a:hover{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.page{max-width:1000px;margin:0 auto;padding:6px 34px 90px}
+section{scroll-margin-top:70px}
+
+/* ---- sticky TOC ---- */
+.toc{position:sticky;top:0;z-index:60;background:rgba(242,244,248,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-soft)}
+.toc-inner{max-width:1000px;margin:0 auto;padding:8px 34px;display:flex;flex-wrap:wrap;gap:4px}
+.toc a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.toc a:hover{color:var(--accent-ink);background:var(--accent-soft)}
+.toc a.interact{color:var(--accent-ink);font-weight:600}
+.toc a.interact::before{content:"◉ ";font-size:10px;vertical-align:1px}
+
+/* ---- doc head ---- */
+.doc-head{background:linear-gradient(180deg,#ffffff,#fbfcfe);border:1px solid var(--border-soft);border-radius:16px;padding:30px 34px;margin:22px 0;box-shadow:var(--shadow)}
+.doc-tags{font-family:var(--mono);font-size:13px;color:var(--accent-ink);margin-bottom:10px}
+.doc-tags span{background:var(--accent-soft);border-radius:6px;padding:2px 8px;margin-right:6px;display:inline-block}
+h1{font-size:29px;line-height:1.25;margin:0 0 14px;letter-spacing:-.01em}
+.lead{font-size:16.5px;color:#333a46;margin:0}
+
+/* ---- sections / cards ---- */
+section.card{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:26px 32px;margin:22px 0;box-shadow:var(--shadow)}
+h2{font-size:23px;line-height:1.3;margin:0 0 14px;color:var(--ink)}
+h2 .sec-n{color:var(--accent)}
+h3{font-size:18.5px;margin:26px 0 8px}
+h4{font-size:15.5px;margin:18px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:6px 0}
+.small{font-size:13.5px;color:var(--muted)}
+code{font-family:var(--mono);font-size:.9em;background:#eef1f7;border:1px solid var(--border-soft);border-radius:5px;padding:1px 5px;color:#33405e}
+pre.code{background:var(--code-bg);border:1px solid var(--border-soft);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:13.4px;line-height:1.62;color:var(--code-ink);margin:14px 0}
+pre.code code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14.3px;margin:14px 0;background:#fff}
+th{background:#eef1f6;text-align:left;font-weight:600;color:#3a4353;padding:9px 12px;border:1px solid var(--border-soft)}
+td{border:1px solid var(--border-soft);padding:9px 12px;vertical-align:top}
+tbody tr:nth-child(even){background:#fafbfd}
+.tbl-wrap{overflow-x:auto}
+
+/* ---- glossary ---- */
+dl.gloss{margin:12px 0;display:grid;grid-template-columns:250px 1fr;gap:8px 18px}
+dl.gloss dt{font-weight:700;color:var(--accent-ink)}
+dl.gloss dd{margin:0;color:#333a46}
+dl.gloss dt,dl.gloss dd{padding:6px 0;border-bottom:1px dashed var(--border-soft)}
+
+/* ---- notes / badges ---- */
+.note{background:#f2f6ff;border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.8px;color:#2c3550}
+.note.warn{background:var(--org-bg);border-color:var(--org-br);border-left-color:var(--org);color:#5c430f}
+.note.live{background:var(--ok-bg);border-color:var(--ok-br);border-left-color:var(--ok);color:#144d28}
+.note.sys{background:var(--viol-bg);border-color:var(--viol-br);border-left-color:var(--viol);color:#4a3a68}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:4px 13px;border-radius:99px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.badge.warn{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.badge.neutral{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+
+/* ---- достоверность ---- */
+.dm{display:inline-block;font:700 10.5px/1.4 var(--mono);border-radius:5px;padding:1px 7px;vertical-align:1px;white-space:nowrap}
+.dm-docs{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.dm-code{background:var(--accent-soft);color:var(--accent-ink);border:1px solid #c6d4f2}
+.dm-infer{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.dm-retell{background:var(--viol-bg);color:var(--viol);border:1px solid var(--viol-br)}
+
+/* ---- viz common ---- */
+.viz{border:1.5px solid #b9c9ec;border-radius:16px;background:linear-gradient(180deg,#fdfeff,#f8fafd);padding:24px 28px;margin:26px 0;box-shadow:var(--shadow);scroll-margin-top:70px}
+.viz-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#2f5fd7,#5b83e8);border-radius:6px;padding:3px 10px;margin-bottom:10px}
+.viz h3{margin:0 0 6px;font-size:20px}
+.viz-hint{font-size:14px;color:var(--muted);margin:4px 0 16px}
+.viz-note{font-size:13.5px;color:var(--muted);margin:16px 0 0;padding-top:12px;border-top:1px dashed var(--border)}
+
+/* buttons */
+.btn{font:600 14px/1.2 inherit;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:9px 16px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#2750bd;color:#fff}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+/* ================= VIZ 1: симулятор цикла ================= */
+.l1 scn-row{display:flex}
+.l1scn-row{display:flex;flex-wrap:wrap;gap:9px;margin:4px 0 14px}
+.l1scn{flex:1;min-width:200px;text-align:left;border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:10px 13px;cursor:pointer;transition:all .15s}
+.l1scn:hover{border-color:var(--accent)}
+.l1scn .st{font-weight:700;font-size:14px;color:var(--ink)}
+.l1scn .sd{font-size:11.8px;color:var(--muted);margin-top:2px;line-height:1.4}
+.l1scn.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px rgba(47,95,215,.12)}
+.l1scn.on .st{color:var(--accent-ink)}
+.l1ctrl{display:flex;flex-wrap:wrap;gap:16px;align-items:center;background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:11px 15px;margin-bottom:16px}
+.l1ctrl label{font-size:13px;font-weight:700;color:#3a4353}
+.l1ctrl input[type=range]{vertical-align:middle;accent-color:var(--accent);width:150px}
+.l1ctrl select{font:600 13px var(--mono);border:1.5px solid var(--border);border-radius:8px;padding:4px 8px;background:#fff;color:var(--ink)}
+.l1val{font:800 14px var(--mono);color:var(--accent-ink)}
+.l1grid{display:grid;grid-template-columns:390px 1fr;gap:16px;align-items:start}
+.ring-wrap{position:relative;width:340px;margin:0 auto}
+.ring-wrap svg{display:block;width:340px;height:340px}
+.arc{fill:none;stroke-width:7;stroke-linecap:round}
+.arc-model{stroke:#2f5fd7;opacity:.85}
+.arc-tools{stroke:#c96f10;opacity:.85}
+.arc-result{stroke:#177a3e;opacity:.85}
+.rlbl{font:700 11px var(--mono);fill:#5b6472}
+.rlbl-model{fill:#24489e}
+.rlbl-tools{fill:#a35608}
+.rlbl-result{fill:#177a3e}
+#l1markwrap{transition:transform .65s cubic-bezier(.5,.05,.3,1)}
+#l1markdot{fill:#2f5fd7;stroke:#fff;stroke-width:2.5;transition:fill .3s}
+#l1markdot.tools{fill:#c96f10}
+#l1markdot.result{fill:#177a3e}
+#l1markdot.err{fill:#c23a2b}
+#l1markdot.final{fill:#177a3e}
+.ring-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:170px}
+.ring-step{font:800 26px/1.15 var(--mono);color:var(--ink)}
+.ring-sub{font:600 11px var(--mono);color:var(--muted);margin-top:3px}
+.ring-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#aab3c2;margin-right:6px;vertical-align:0;transition:background .3s}
+.ring-dot.run{background:#2f5fd7;animation:l1pulse 1.2s infinite}
+.ring-dot.ok{background:#177a3e}
+.ring-dot.warn{background:#c96f10}
+.ring-dot.err{background:#c23a2b}
+@keyframes l1pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.ring.done .arc{opacity:.3}
+.ring.done .rlbl{opacity:.5}
+#l1ring.status-err .arc{opacity:.35}
+.l1status{border:1.5px solid var(--border);border-radius:11px;background:#fff;padding:9px 13px;font:700 13px var(--mono);color:#3a4353;text-align:center;margin-top:10px}
+.l1status.ok{border-color:var(--ok-br);background:var(--ok-bg);color:var(--ok)}
+.l1status.warn{border-color:var(--org-br);background:var(--org-bg);color:var(--org-ink)}
+.l1status.err{border-color:var(--no-br);background:var(--no-bg);color:var(--no-ink)}
+.l1cat{position:relative;border:1.5px solid var(--border);border-radius:11px;background:#fff;padding:9px 13px;margin-top:10px;transition:all .45s}
+.l1cat-t{font:800 10px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+.l1cat-chips{display:flex;flex-wrap:wrap;gap:6px}
+.l1cat-chips span{font:700 11px var(--mono);border:1px solid var(--border);border-radius:7px;padding:3px 9px;color:#33405e;background:#fbfcfe;transition:all .3s}
+.l1cat.lit{border-color:#e0a95e;box-shadow:0 0 0 3px rgba(201,111,16,.12)}
+.l1cat.lit .l1cat-chips span{border-color:#e0a95e;background:var(--org-bg);color:var(--org-ink)}
+.l1cat.off{opacity:.55}
+.l1cat.off .l1cat-chips span{background:#eef1f6;color:var(--faint);border-color:var(--border);text-decoration:line-through}
+.l1cat-stamp{display:none;position:absolute;inset:0;align-items:center;justify-content:center;z-index:3}
+.l1cat-stamp span{transform:rotate(-3deg);border:2px dashed var(--no-ink);background:rgba(255,255,255,.95);color:var(--no-ink);font:800 12px var(--mono);border-radius:10px;padding:7px 12px;text-align:center;box-shadow:var(--shadow)}
+.l1cat.off .l1cat-stamp{display:flex}
+.l1log-wrap{border:1.5px solid var(--border);border-radius:13px;background:#fff;padding:12px 14px}
+.l1log-t{font:800 12px var(--mono);color:var(--ink);margin-bottom:8px;padding-bottom:6px;border-bottom:1px dashed var(--border)}
+.l1log{height:322px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.le{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--border-soft);border-radius:9px;padding:5px 9px;font-size:12.4px;line-height:1.5;background:#fbfcfe;opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s}
+.le.on{opacity:1;transform:none}
+.le-s{font:800 10px/1.8 var(--mono);color:var(--faint);min-width:44px;text-align:right}
+.le-t{flex:1;color:#333a46}
+.le-t b{color:var(--ink)}
+.le-sys{border-left:3px solid var(--viol);background:var(--viol-bg)}
+.le-model{border-left:3px solid var(--accent);background:#f4f7ff}
+.le-tool{border-left:3px solid var(--org);background:var(--org-bg)}
+.le-res{border-left:3px solid var(--ok);background:var(--ok-bg)}
+.le-err{border-left:3px solid var(--no-ink);background:var(--no-bg)}
+.le-ev{border-left:3px solid var(--ok);background:#eaf7ef;border-color:var(--ok-br)}
+.le-ev .le-t{font-weight:700;color:var(--ok)}
+.le-quote{border-left:3px solid var(--muted);background:#f3f4f7;font-style:italic;color:#4a5262}
+.l1perm{border:1.5px solid #e0a95e;border-radius:13px;background:#fffbf4;padding:13px 15px;margin-bottom:12px}
+.l1perm-t{font:800 13px var(--mono);color:var(--org-ink)}
+.l1perm-d{font-size:12.8px;color:#5c430f;margin:5px 0 10px;line-height:1.5}
+.l1out{border:1.5px solid #b9c9ec;border-radius:14px;background:linear-gradient(180deg,#fdfeff,#f7faff);padding:16px 19px;margin-top:16px;display:none}
+.l1out.show{display:block;animation:l1fade .4s}
+@keyframes l1fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.l1out-h{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:8px}
+.l1out-badge{font:800 13px var(--mono);color:#fff;background:var(--accent);border-radius:8px;padding:4px 12px}
+.l1out-title{font-weight:800;font-size:16.5px;color:var(--ink)}
+.l1out-body{font-size:14.3px;color:#2c3550;line-height:1.62}
+.l1out-extra{margin-top:9px;border-top:1px dashed var(--border);padding-top:9px;font-size:13.6px;color:#4a5262}
+
+/* ================= VIZ 2: рычаги цикла ================= */
+.l2tabs{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}
+.l2tab{display:flex;align-items:center;gap:8px;border:1.5px solid var(--border);border-radius:99px;background:#fff;padding:8px 15px;cursor:pointer;font:700 13.5px inherit;color:var(--ink);transition:all .15s}
+.l2tab:hover{border-color:var(--accent)}
+.l2tab .dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.l2tab.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink);box-shadow:0 0 0 3px rgba(47,95,215,.12)}
+.l2cnt-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.l2cnt{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:6px 13px;font-size:12.5px;color:var(--muted)}
+.l2cnt b{font:800 17px var(--mono);color:var(--accent-ink);margin-right:5px}
+.l2badge{font:700 12px inherit;border-radius:99px;padding:5px 13px;border:1px solid var(--border);background:#eef1f6;color:#4a5262;opacity:0;transform:scale(.8);transition:all .35s;display:inline-flex;align-items:center;gap:6px}
+.l2badge.on{opacity:1;transform:none}
+.l2badge.ok{background:var(--ok-bg);border-color:var(--ok-br);color:var(--ok)}
+.l2badge.warn{background:var(--org-bg);border-color:var(--org-br);color:var(--org-ink)}
+.l2badge.infer{background:var(--viol-bg);border-color:var(--viol-br);color:var(--viol)}
+.l2grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;align-items:start}
+.l2panel{border:1.5px solid var(--border);border-radius:14px;background:#fff;padding:13px 15px}
+.l2panel-ctx{border-color:#c6d4f2;background:linear-gradient(#fdfeff,#f7faff)}
+.l2ph{font:800 12.5px var(--mono);color:var(--ink);margin-bottom:9px;padding-bottom:7px;border-bottom:1px dashed var(--border)}
+.l2panel-ctx .l2ph{color:var(--accent-ink);border-color:#c6d4f2}
+.l2ladder{height:392px;overflow-y:auto;display:flex;flex-direction:column;gap:7px}
+.l2row{display:flex;gap:9px;border:1px solid var(--border-soft);border-radius:11px;background:#fbfcfe;padding:7px 10px;opacity:0;transform:translateY(9px);transition:opacity .4s,transform .4s}
+.l2row.on{opacity:1;transform:none}
+.l2row.final{border-color:var(--ok-br);background:var(--ok-bg)}
+.l2row.inj{border-color:var(--viol-br);background:var(--viol-bg)}
+.l2row.cres{border-color:#c6d4f2;background:#f4f8ff}
+.l2rn{font:800 10.5px/1.7 var(--mono);color:var(--faint);min-width:56px;text-align:right}
+.l2row.inj .l2rn,.l2row.cres .l2rn{color:var(--viol)}
+.l2rb{flex:1;min-width:0;font-size:12.2px;line-height:1.5;color:#333a46}
+.l2rm{font-weight:700;color:var(--ink)}
+.l2rt{font:700 11.3px var(--mono);color:var(--org-ink);margin-top:2px}
+.l2rr{font-size:11.6px;color:var(--muted);margin-top:2px}
+.l2row.final .l2rr{color:var(--ok);font-weight:700}
+.l2skl{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.l2skl span{font:700 9.3px var(--mono);border:1px solid var(--border);border-radius:5px;padding:1px 6px;color:var(--faint);background:#f3f4f7}
+.l2fan{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.l2fan span{font:700 10px var(--mono);border:1.5px dashed #e0a95e;border-radius:7px;padding:2px 8px;color:var(--org-ink);background:var(--org-bg);opacity:0;transform:translateY(5px);transition:opacity .3s,transform .3s}
+.l2row.on .l2fan span{opacity:1;transform:none}
+.l2row.on .l2fan span:nth-child(1){transition-delay:.05s}
+.l2row.on .l2fan span:nth-child(2){transition-delay:.14s}
+.l2row.on .l2fan span:nth-child(3){transition-delay:.23s}
+.l2row.on .l2fan span:nth-child(4){transition-delay:.32s}
+.l2row.on .l2fan span:nth-child(5){transition-delay:.41s}
+.l2child{border:1.5px dashed #9db6ea;border-radius:12px;background:#f7faff;padding:9px 11px;opacity:0;transform:translateY(9px);transition:opacity .4s,transform .4s}
+.l2child.on{opacity:1;transform:none}
+.l2child-h{font:800 10.8px var(--mono);color:var(--accent-ink);margin-bottom:7px}
+.l2child-rows{display:flex;flex-direction:column;gap:5px;margin-bottom:7px}
+.l2crow{display:flex;gap:7px;font-size:11.4px;line-height:1.45;border:1px solid var(--border-soft);border-radius:8px;background:#fff;padding:4px 8px;opacity:0;transform:translateX(8px);transition:all .35s;color:#333a46}
+.l2crow.on{opacity:1;transform:none}
+.l2crow.final{border-color:var(--ok-br);background:var(--ok-bg)}
+.l2crow .n{font:800 9.5px/1.8 var(--mono);color:var(--faint);min-width:40px;text-align:right}
+.l2crow .t{font:700 10.5px var(--mono);color:var(--org-ink);margin-right:5px}
+.l2child-ctx{display:flex;flex-wrap:wrap;gap:4px}
+.l2child-ctx .cx{font:700 9.3px var(--mono);border:1px solid var(--org-br);background:var(--org-bg);color:var(--org-ink);border-radius:6px;padding:1px 6px}
+.l2child-ctx .cx.fin{border-color:var(--ok-br);background:var(--ok-bg);color:var(--ok)}
+.l2child-note{font-size:10.6px;color:var(--muted);margin-top:6px;line-height:1.45}
+.l2ctxbar{display:flex;flex-wrap:wrap;gap:6px;min-height:120px;align-content:flex-start;border:1px dashed var(--border);border-radius:11px;padding:9px 10px;background:#fbfcfe}
+.cx{font:700 10.6px var(--mono);border-radius:7px;padding:2px 8px;border:1px solid var(--border);animation:l2pop .32s}
+@keyframes l2pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+.cx-task{background:#eef1f6;color:#4a5262}
+.cx-instr{background:var(--viol-bg);color:var(--viol);border-color:var(--viol-br)}
+.cx-skl{background:var(--viol-bg);color:var(--viol);border-color:var(--viol-br);font-weight:800}
+.cx-lst{background:#f3f4f7;color:var(--faint)}
+.cx-mid{background:var(--org-bg);color:var(--org-ink);border-color:var(--org-br)}
+.cx-fin{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-br);font-weight:800}
+.l2ctx-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:8px}
+.l2verdict{border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;background:#f2f6ff;padding:11px 15px;margin-top:16px;font-size:14px;color:#2c3550;line-height:1.6}
+.l2verdict b{color:var(--accent-ink)}
+.l2chart-wrap{border:1.5px solid var(--border);border-radius:14px;background:#fff;padding:14px 16px;margin-top:16px}
+.l2chart-t{font:800 12.5px var(--mono);color:var(--ink);margin-bottom:6px}
+.l2chart-wrap svg{display:block;width:100%;height:auto}
+.lgpt{opacity:.4;transition:opacity .3s}
+.lgpt.act{opacity:1}
+.l2legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.6px;color:var(--muted);margin-top:8px}
+.l2legend i{font-style:normal;display:inline-flex;align-items:center;gap:5px}
+.l2legend .sw{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* ---- links ---- */
+.links ul{list-style:none;padding:0}
+.links li{padding:7px 0;border-bottom:1px dashed var(--border-soft);font-size:14.5px}
+.links li:last-child{border-bottom:none}
+.links .lnk-desc{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.links h3{margin:20px 0 6px}
+.ext::after{content:" ↗";font-size:12px;color:var(--faint)}
+footer{margin-top:34px;text-align:center;color:var(--faint);font-size:12.5px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#glossary">Глоссарий</a>
+    <a href="#canon">Канон ReAct</a>
+    <a href="#loop">Петля в V2</a>
+    <a href="#q1">Вопрос 1: остановка</a>
+    <a href="#viz-loop" class="interact">Когда он остановится</a>
+    <a href="#q2">Вопрос 2: рычаги</a>
+    <a href="#viz-levers" class="interact">Рычаги цикла</a>
+    <a href="#q3">Вопрос 3: три harness</a>
+    <a href="#summary">Резюме</a>
+    <a href="#links">Ссылки</a>
+  </div>
+</nav>
+
+<div class="page">
+
+<div class="doc-head">
+  <div class="doc-tags"><span>#AI_gen</span><span>#opencode</span><span>#ai-agents</span></div>
+  <h1>08. Agent loop в OpenCode: когда агент останавливается и&nbsp;что управляет циклом</h1>
+  <p class="lead">Агент — это, в сущности, <code>while</code>: модель вызывает инструменты, результаты возвращаются в контекст, модель вызывается снова. Но у любого <code>while</code> должен быть выход — и три вопроса этой заметки (они же три вопроса владельца, замкнувшие цикл доклада): <b>(1)</b> когда OpenCode останавливается — каковы критерии; <b>(2)</b> что раздувает и сжимает цикл — промпт, скиллы, модификации агента; <b>(3)</b> чем это отличается от других harness. Есть и красивая параллель с <a href="../01_how-to-read-llm-architecture.md">заметкой 01</a>: там генерация — цикл по одному токену, здесь harness — цикл по целому шагу.</p>
+</div>
+
+<section class="card">
+  <div class="note">Достоверность помечена по всему тексту: <span class="dm dm-docs">доки</span> — официальный источник, <span class="dm dm-code">код, не доки</span> — исходники OpenCode, <span class="dm dm-infer">вывод</span> — реконструкция из косвенных фактов, <span class="dm dm-retell">пересказ</span> — пересказ чужой документации. Главный пробел честно: явного единого критерия остановки в доках V2 нет — раздел «Вопрос 1» собран из косвенных формулировок и кода.</div>
+</section>
+
+<!-- ============ ГЛОССАРИЙ ============ -->
+<section class="card" id="glossary">
+  <h2>Мини-глоссарий</h2>
+  <dl class="gloss">
+    <dt>agent loop</dt><dd>цикл «модельный вызов → tool-вызовы → результат → следующий модельный вызов».</dd>
+    <dt>шаг (step)</dt><dd>одна итерация цикла: модельный вызов с его tool-вызовами.</dd>
+    <dt>tool-driven continuation</dt><dd>продолжение модельных вызовов, пока их продолжают tool-вызовы.</dd>
+    <dt><code>steps</code></dt><dd>максимум модельных шагов агента; на последнем шаге инструменты отнимаются, модель просит подытожить текстом.</dd>
+    <dt>plain rejection vs rejection with feedback</dt><dd>«голое» отклонение инструмента vs отклонение с причиной, которую видит модель.</dd>
+    <dt>компакция (compaction)</dt><dd>замена старой части разговора саммари, чтобы сессия жила за пределами контекста модели.</dd>
+    <dt>circuit breaker</dt><dd>автоматический прерыватель хода (у Codex: после серии отказов).</dd>
+  </dl>
+</section>
+
+<!-- ============ КАНОН ============ -->
+<section class="card" id="canon">
+  <h2><span class="sec-n">1.</span> Канон: Reason → Act → Observe</h2>
+  <p>Каноническая рамка — ReAct: чередование рассуждений и действий, цикл Reason → Act → Observe (<a class="ext" href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a>). Anthropic формулирует короче: агенты — это «LLMs using tools based on environmental feedback in a loop», и в цикл «common to include stopping conditions (such as a maximum number of iterations)» (<a class="ext" href="https://www.anthropic.com/research/building-effective-agents">Anthropic: building effective agents</a>).</p>
+  <p>Вся заметка — о том, как эти stopping conditions устроены у OpenCode и его соседей.</p>
+</section>
+
+<!-- ============ ПЕТЛЯ ============ -->
+<section class="card" id="loop">
+  <h2><span class="sec-n">2.</span> Петля в OpenCode V2</h2>
+  <p>Формальное описание петли в доках косвенное: хук <code>context</code> «runs for the agent loop, including tool-driven continuations» (<a class="ext" href="https://opencode.ai/v2/docs/build/plugins/server/">server plugin docs</a>) — модельные вызовы продолжаются, пока их продолжают tool-вызовы <span class="dm dm-docs">доки, косвенно</span>. Завершение сессии — событие <code>session.idle</code> («Session completed»), а эндпоинт <code>POST /api/session/{sessionID}/prompt</code> описан как «schedule agent-loop execution» (<a class="ext" href="https://opencode.ai/v2/docs/api/">API reference</a>; <a class="ext" href="https://opencode.ai/v2/docs/build/plugins/migrate-v1/">migrate-v1</a>) <span class="dm dm-docs">доки</span>.</p>
+  <p>И заглянув под капот V1-раннера <span class="dm dm-code">код, не доки, ветка v1</span>: там цикл — буквально <code>while(true)</code> с break «exiting loop» и комментарием «Some providers return "stop" even when the assistant message contains tool calls. Keep the loop running…» (<a class="ext" href="https://github.com/anomalyco/opencode/blob/v1/packages/opencode/src/session/prompt.ts">prompt.ts</a>).</p>
+
+  <svg viewBox="0 0 920 330" role="img" aria-label="Схема agent loop" style="display:block;width:100%;height:auto;margin:14px 0">
+    <defs>
+      <marker id="flA" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8b93a3"/></marker>
+      <marker id="flG" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#177a3e"/></marker>
+    </defs>
+    <!-- пользовательский ввод -->
+    <rect x="330" y="8" width="260" height="52" rx="10" fill="#fff" stroke="#dde2ea" stroke-width="1.5"/>
+    <text x="460" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#20242c" font-family="ui-monospace,Consolas,monospace">пользовательский ввод</text>
+    <text x="460" y="48" text-anchor="middle" font-size="10.5" fill="#8b93a3" font-family="ui-monospace,Consolas,monospace">сбрасывает счётчик steps</text>
+    <line x1="460" y1="60" x2="460" y2="88" stroke="#8b93a3" stroke-width="1.8" marker-end="url(#flA)"/>
+    <!-- модельный вызов -->
+    <rect x="330" y="92" width="260" height="52" rx="10" fill="#e9eefb" stroke="#c6d4f2" stroke-width="1.5"/>
+    <text x="460" y="114" text-anchor="middle" font-size="14" font-weight="800" fill="#24489e" font-family="ui-monospace,Consolas,monospace">МОДЕЛЬНЫЙ ВЫЗОВ</text>
+    <text x="460" y="132" text-anchor="middle" font-size="10.5" fill="#5b6472" font-family="ui-monospace,Consolas,monospace">шаг (step) цикла</text>
+    <!-- нет tool-вызовов -> session.idle -->
+    <line x1="590" y1="118" x2="756" y2="118" stroke="#177a3e" stroke-width="1.8" marker-end="url(#flG)"/>
+    <text x="673" y="110" text-anchor="middle" font-size="10.5" fill="#177a3e" font-weight="700" font-family="ui-monospace,Consolas,monospace">без tool-вызовов</text>
+    <rect x="760" y="95" width="152" height="46" rx="10" fill="#e5f4ea" stroke="#bfe3cc" stroke-width="1.5"/>
+    <text x="836" y="114" text-anchor="middle" font-size="13" font-weight="800" fill="#177a3e" font-family="ui-monospace,Consolas,monospace">session.idle</text>
+    <text x="836" y="131" text-anchor="middle" font-size="10" fill="#177a3e" font-family="ui-monospace,Consolas,monospace">«Session completed»</text>
+    <!-- инструменты -->
+    <line x1="460" y1="144" x2="460" y2="174" stroke="#8b93a3" stroke-width="1.8" marker-end="url(#flA)"/>
+    <text x="472" y="163" font-size="10.5" fill="#a35608" font-weight="700" font-family="ui-monospace,Consolas,monospace">tool-вызовы</text>
+    <rect x="300" y="178" width="320" height="58" rx="10" fill="#fdf3e6" stroke="#f0d5ab" stroke-width="1.5"/>
+    <text x="460" y="200" text-anchor="middle" font-size="14" font-weight="800" fill="#a35608" font-family="ui-monospace,Consolas,monospace">ИНСТРУМЕНТЫ</text>
+    <text x="460" y="220" text-anchor="middle" font-size="10.5" fill="#a35608" font-family="ui-monospace,Consolas,monospace">Code Mode может свернуть несколько вызовов</text>
+    <text x="460" y="231" text-anchor="middle" font-size="10.5" fill="#a35608" font-family="ui-monospace,Consolas,monospace">в одну программу — заметка 07</text>
+    <!-- результат -->
+    <line x1="460" y1="236" x2="460" y2="264" stroke="#8b93a3" stroke-width="1.8" marker-end="url(#flA)"/>
+    <text x="472" y="254" font-size="10.5" fill="#177a3e" font-weight="700" font-family="ui-monospace,Consolas,monospace">результаты</text>
+    <rect x="300" y="268" width="320" height="46" rx="10" fill="#e5f4ea" stroke="#bfe3cc" stroke-width="1.5"/>
+    <text x="460" y="296" text-anchor="middle" font-size="13" font-weight="800" fill="#177a3e" font-family="ui-monospace,Consolas,monospace">результат → в контекст</text>
+    <!-- возврат к модели -->
+    <path d="M 300 291 H 140 V 118 H 324" fill="none" stroke="#2f5fd7" stroke-width="1.8" marker-end="url(#flA)" opacity=".75"/>
+    <text x="22" y="176" font-size="10.5" fill="#24489e" font-weight="700" font-family="ui-monospace,Consolas,monospace">следующий модельный вызов</text>
+    <text x="22" y="190" font-size="10.5" fill="#5b6472" font-family="ui-monospace,Consolas,monospace">tool-driven continuation</text>
+    <text x="22" y="204" font-size="9.5" fill="#8b93a3" font-family="ui-monospace,Consolas,monospace">[доки, косвенно]</text>
+  </svg>
+  <p class="small">Старт цикла — <code>POST /api/session/{sessionID}/prompt</code> («schedule agent-loop execution») <span class="dm dm-docs">доки</span>; условие продолжения — tool-вызовы модельного ответа <span class="dm dm-docs">доки, косвенно</span>.</p>
+</section>
+
+<!-- ============ ВОПРОС 1 ============ -->
+<section class="card" id="q1">
+  <h2><span class="sec-n">3.</span> Вопрос 1: критерии остановки</h2>
+  <p>Прямой формулы «сессия завершается, когда X» в доках нет. Реконструкция даёт <b>четыре механизма</b> <span class="dm dm-infer">вывод</span>:</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Механизм</th><th>Что происходит</th><th>Достоверность</th></tr></thead>
+    <tbody>
+      <tr><td>а</td><td>модель перестала звать инструменты</td><td>ответ без tool-вызовов → событие <code>session.idle</code></td><td><span class="dm dm-docs">доки, косвенно</span></td></tr>
+      <tr><td>б</td><td>исчерпан <code>steps</code></td><td>инструменты отнимаются, модель принуждена подытожить текстом; новый ввод пользователя сбрасывает счётчик</td><td><span class="dm dm-docs">доки</span></td></tr>
+      <tr><td>в</td><td>plain rejection</td><td>«ends the current step» — конец текущего шага</td><td><span class="dm dm-docs">доки</span>, дословно</td></tr>
+      <tr><td>г</td><td>терминальная ошибка модели</td><td>после политики retry — циклу нечем продолжаться</td><td><span class="dm dm-docs">доки</span> + <span class="dm dm-infer">вывод</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4><code>steps</code> — лимит с мягким финалом <span class="dm dm-docs">доки</span></h4>
+  <p><a class="ext" href="https://opencode.ai/v2/docs/agents/">Agents docs</a>: <code>steps</code> — «positive maximum number of model steps»; «On the final step, OpenCode removes tools and asks the model to summarize in text. New user input resets the allowance». Схема конфига (<a class="ext" href="https://opencode.ai/config.json">config.json</a>) говорит то же: «Maximum number of agentic iterations before forcing text-only response»; <code>maxSteps</code> и <code>experimental.continue_loop_on_deny</code> помечены deprecated. Важно: исчерпание — <b>не ошибка</b>, а принудительный текстовый финал. Механика последнего шага видна в коде <span class="dm dm-code">код, не доки</span>: инструменты не материализуются, ставится <code>toolChoice: "none"</code>, модели уходит промпт «MAXIMUM STEPS REACHED… Tools are disabled until next user input. Respond with text only» (<a class="ext" href="https://github.com/anomalyco/opencode/issues/45328">issue #45328</a>; <a class="ext" href="https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/runner/max-steps.ts">max-steps.ts</a>). Дефолт <code>steps</code> в доках не указан — не будем его выдумывать.</p>
+
+  <h4>Deny — два разных исхода <span class="dm dm-docs">доки</span></h4>
+  <p>Дословно из <a class="ext" href="https://opencode.ai/v2/docs/build/plugins/server/">server plugin docs, Permissions</a>: «A deny rule or a rejection with feedback rejects with a Tool.Error that carries the reason, so the model sees it and continues. A plain rejection ends the current step». То есть deny-правило и отклонение с фидбеком цикл <b>не рвут</b> — модель видит причину и продолжает; «голое» отклонение кончает текущий шаг. Что «конец шага» значит для цикла в целом, в доках не раскрыто — оставляем дословную формулировку с этой оговоркой.</p>
+  <p>Родственные факты: явный настроенный deny финален и хук <code>evaluate</code> не вызывается (формулировка «does not invoke the hook» — тоже из server plugin docs; общий контекст прав — <a class="ext" href="https://opencode.ai/v2/docs/permissions/">permissions docs</a>; механика — в <a href="05_opencode-commands-hooks.md">заметке 05</a>); а V1-флаг <code>continue_loop_on_deny</code> в V2 «accepted but unsupported» — игнорируется с warning (<a class="ext" href="https://opencode.ai/v2/docs/migrate-v1/">migrate-v1</a>; переименования — в <a href="02_opencode-v1-vs-v2.md">заметке 02</a>).</p>
+
+  <h4>Компакция — не остановка <span class="dm dm-docs">доки</span></h4>
+  <p><a class="ext" href="https://opencode.ai/v2/docs/compaction/">Compaction docs</a>: компакция — «replacing older conversation with a summary, so the session can keep going past the model's context limit» — цикл продолжается. Авто-компакция «pauses the session» — пауза, не завершение; <code>experimental.background_compaction</code> (default false, знакомый по <a href="03_opencode-architecture-config.md">заметке 03</a> зонтик <code>experimental.*</code>) — «the session keeps going; the summary is held». Переполнение контекста: дословная формула из compaction docs (Limits → Recovery) — «compacted and retried once. A second rejection is returned as an error».</p>
+
+  <h4>Retry — политика, не критерий <span class="dm dm-docs">доки</span></h4>
+  <p>Retry-хук (тема <a href="05_opencode-commands-hooks.md">заметки 05</a>) касается только сбоев провайдера («Override the retry decision for a provider failure»), может сделать ошибку повторяемой или наложить вето, но «built-in maximum attempt count remains a hard limit». Это регулирование повторов внутри витка, а не условие выхода из цикла.</p>
+
+  <!-- ======== ИНТЕРАКТИВ 1 ======== -->
+  <div class="viz" id="viz-loop">
+    <span class="viz-tag">Интерактив 1</span>
+    <h3>«Когда он остановится» — симулятор цикла</h3>
+    <p class="viz-hint">Кольцо — виток цикла: <b>модельный вызов → tool-вызовы → результат → контекст</b>. Выберите сценарий, задайте лимит <code>steps</code> (слайдер 3–10) и нажмите «Play» или гните цикл по шагам кнопкой «Шаг». Все формулировки в журнале — из заметки, с маркировкой достоверности.</p>
+
+    <div class="l1scn-row">
+      <button class="l1scn on" data-sc="self"><span class="st">Модель завершила сама</span><span class="sd">на выбранном витке модель не зовёт инструменты → финальный ответ → session.idle</span></button>
+      <button class="l1scn" data-sc="steps"><span class="st">Исчерпан steps</span><span class="sd">мягкий финал: инструменты отключаются, модель подытоживает текстом; не ошибка; новый ввод сбрасывает счётчик</span></button>
+      <button class="l1scn" data-sc="reject"><span class="st">Plain rejection</span><span class="sd">отклонение вызова без причины → «ends the current step»; контраст — deny с причиной: Tool.Error, цикл продолжается</span></button>
+      <button class="l1scn" data-sc="provider"><span class="st">Сбой провайдера</span><span class="sd">терминальная ошибка после retry: попытки исчерпаны — hard limit</span></button>
+    </div>
+
+    <div class="l1ctrl">
+      <label>лимит <span class="mono">steps</span>: <span class="l1val" id="l1stepsval">6</span></label>
+      <input type="range" id="l1steps" min="3" max="10" value="6">
+      <span id="l1finishwrap" class="l1ctrl" style="padding:0;border:none;background:none;margin:0">
+        <label>виток самостоятельного финала:</label>
+        <select id="l1finishat"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+      </span>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary" id="l1play">▶ Play</button>
+      <button class="btn" id="l1stepbtn">Шаг ⏭</button>
+      <button class="btn" id="l1reset">Сброс ↺</button>
+    </div>
+
+    <div class="l1grid">
+      <div>
+        <div class="ring-wrap">
+          <svg id="l1ring" viewBox="0 0 340 340" aria-hidden="true">
+            <defs>
+              <marker id="l1arA" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#2f5fd7"/></marker>
+              <marker id="l1arB" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#c96f10"/></marker>
+              <marker id="l1arC" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#177a3e"/></marker>
+            </defs>
+            <path class="arc arc-model" d="M 84.2 98.0 A 112 112 0 0 1 255.8 98.0" marker-end="url(#l1arA)"/>
+            <path class="arc arc-tools" d="M 275.3 131.7 A 112 112 0 0 1 189.5 280.3" marker-end="url(#l1arB)"/>
+            <path class="arc arc-result" d="M 150.5 280.3 A 112 112 0 0 1 64.7 131.7" marker-end="url(#l1arC)"/>
+            <text class="rlbl rlbl-model" x="170" y="34" text-anchor="middle">модельный вызов</text>
+            <text class="rlbl rlbl-tools" x="297" y="247" text-anchor="middle">tool-вызовы</text>
+            <text class="rlbl rlbl-result" x="43" y="238" text-anchor="middle">результат</text>
+            <text class="rlbl rlbl-result" x="43" y="252" text-anchor="middle">→ контекст</text>
+            <g id="l1markwrap"><circle id="l1markdot" cx="170" cy="58" r="8"/></g>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-step" id="l1stepnum">—</div>
+            <div class="ring-sub" id="l1stepsub">лимит steps: 6</div>
+          </div>
+        </div>
+        <div class="l1status" id="l1status"><span class="ring-dot" id="l1dot"></span>ожидание</div>
+        <div class="l1cat" id="l1catalog">
+          <div class="l1cat-t">каталог инструментов</div>
+          <div class="l1cat-chips"><span>read</span><span>grep</span><span>edit</span><span>bash</span><span>skill</span></div>
+          <div class="l1cat-stamp"><span>toolChoice: "none"<br>MAXIMUM STEPS REACHED</span></div>
+        </div>
+      </div>
+
+      <div class="l1log-wrap">
+        <div class="l1log-t">журнал цикла</div>
+        <div class="l1perm hidden" id="l1perm">
+          <div class="l1perm-t">подтверждение tool-вызова</div>
+          <div class="l1perm-d">Модель на витке 2 хочет вызвать <code>edit(src/agent.ts)</code>. Пользователь решает: отклонить «голое» отклонение или отклонить с причиной.</div>
+          <div class="btn-row">
+            <button class="btn" id="l1plain">Отклонить без причины (plain)</button>
+            <button class="btn" id="l1fb">Отклонить с причиной (feedback)</button>
+          </div>
+        </div>
+        <div class="l1log" id="l1log"></div>
+      </div>
+    </div>
+
+    <div class="l1out" id="l1outcome">
+      <div class="l1out-h">
+        <span class="l1out-badge" id="l1outbadge">Механизм</span>
+        <span class="l1out-title" id="l1outtitle"></span>
+      </div>
+      <div class="l1out-body" id="l1outbody"></div>
+      <div class="l1out-extra hidden" id="l1outextra"></div>
+    </div>
+
+    <p class="viz-note">Итоговая карточка показывает, какой из четырёх механизмов сработал, с дословными цитатами и маркировкой достоверности. Маркировка: <span class="dm dm-docs">доки</span> <span class="dm dm-code">код, не доки</span> <span class="dm dm-infer">вывод</span> — как в исходной заметке.</p>
+  </div>
+</section>
+
+<!-- ============ ВОПРОС 2 ============ -->
+<section class="card" id="q2">
+  <h2><span class="sec-n">4.</span> Вопрос 2: что управляет размером и числом циклов</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Рычаг</th><th>Эффект на цикл</th><th>Достоверность</th></tr></thead>
+    <tbody>
+      <tr><td><b>AGENTS.md / инструкции</b></td><td>глобальный файл + все от рабочей директории вверх грузятся сразу, вложенные — лениво по ходу (<a class="ext" href="https://opencode.ai/v2/docs/instructions/">instructions docs</a>); изменения инжектируются «before the next model request», «at the next step boundary without queuing a message turn» — <b>не добавляют модельный виток</b>; <code>CLAUDE.md</code> не используется</td><td><span class="dm dm-docs">доки</span></td></tr>
+      <tr><td><b>Скиллы</b></td><td>на каждом шаге — лёгкий листинг «only the ID, name, and description, not the full Markdown body»; тело догружается инструментом <code>skill</code> («Adds the Markdown body… to the conversation») (<a class="ext" href="https://opencode.ai/v2/docs/skills/">skills docs</a>). Загрузка тела = +1 виток цикла и постоянное место в контексте <span class="dm dm-infer">вывод</span>; качество <code>description</code> определяет выбор и число ложных витков</td><td><span class="dm dm-docs">доки</span> + <span class="dm dm-infer">вывод</span></td></tr>
+      <tr><td><b>Поля агента</b></td><td>system prompt + model + permissions + steps (<a class="ext" href="https://opencode.ai/v2/docs/agents/">agents docs</a>; поля — в <a href="04_opencode-multiagent.md">заметке 04</a>): промпт и права решают, как часто модель зовёт инструменты; <code>steps</code> — жёсткий потолок</td><td><span class="dm dm-docs">доки</span></td></tr>
+      <tr><td><b>Субагенты</b></td><td>«Subagents run with fresh context in foreground or background child sessions» (<a class="ext" href="https://opencode.ai/v2/docs/agents/">agents docs</a>) — собственный цикл с чистым контекстом; <code>experimental.subagent_depth</code> — «Defaults to 1, so a subagent cannot start another subagent» (<a class="ext" href="https://opencode.ai/v2/docs/config/">config docs</a>)</td><td><span class="dm dm-docs">доки</span></td></tr>
+      <tr><td><b>Code Mode</b></td><td><code>execute</code> — «parallel independent calls and for processing results without adding every intermediate value to the model context» (<a class="ext" href="https://opencode.ai/v2/docs/tools">tools docs</a>) — меньше витков и меньше контекста на виток (разбор — в <a href="07_opencode-codemode.md">заметке 07</a>)</td><td><span class="dm dm-docs">доки</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Куда всё это попадает: порядок сборки промпта <span class="dm dm-docs">доки</span> — system → Code Mode guidance → MCP/skill guidance → AGENTS.md + instructions → дата/окружение → session entries (<a class="ext" href="https://opencode.ai/v2/docs/instructions/">instructions</a>).</p>
+  <div class="note">Свести в «регуляторы» <span class="dm dm-infer">вывод</span> (в доках в таком виде не сформулированы): <code>steps</code> — жёсткий потолок; инструкции и описания — меньше ложных витков; Code Mode — схлопывает лестницу вызовов; субагенты — выносят цикл из родительского контекста.</div>
+  <p class="small">Исторический штрих: ещё в сетапе владельца v1 (<a href="../../../zettelkasten/AI_start.md">Установка openCode &amp; OMO</a>) короткий промпт осознавался как «получается диалог… задача выполняется в несколько итераций» — agent loop был всегда, V2 лишь сделала его настраиваемым.</p>
+
+  <!-- ======== ИНТЕРАКТИВ 2 ======== -->
+  <div class="viz" id="viz-levers">
+    <span class="viz-tag">Интерактив 2</span>
+    <h3>«Рычаги цикла» — одна задача, пять конфигураций</h3>
+    <p class="viz-hint">Демо-задача: <span class="mono" style="font-size:12.5px;background:#eef4ff;border:1px solid #d5e2f6;border-radius:99px;padding:4px 12px">разберись в 5 файлах (auth.ts, config.ts, agent.ts, tools.ts, prompt.ts) и дай сводку</span>. Переключайте конфигурации — прогон повторяется, а мини-график внизу сравнивает все пять по осям «витки × контекст». Оранжевые чипы — промежуточные значения, оседающие в контексте; зелёные — только итог.</p>
+
+    <div class="l2tabs" id="l2tabs">
+      <button class="l2tab on" data-cfg="base"><span class="dot" style="background:#5b6472"></span>Базовый цикл</button>
+      <button class="l2tab" data-cfg="agents"><span class="dot" style="background:#6b4fa3"></span>+ AGENTS.md</button>
+      <button class="l2tab" data-cfg="skill"><span class="dot" style="background:#c96f10"></span>+ Скилл</button>
+      <button class="l2tab" data-cfg="subagent"><span class="dot" style="background:#2f5fd7"></span>+ Субагент</button>
+      <button class="l2tab" data-cfg="codemode"><span class="dot" style="background:#177a3e"></span>+ Code Mode</button>
+      <span style="flex:1"></span>
+      <button class="btn" id="l2replay">↻ Повторить прогон</button>
+    </div>
+
+    <div class="l2cnt-row">
+      <span class="l2cnt"><b id="l2turnsN">0</b>витков (родитель)</span>
+      <span class="l2cnt"><b id="l2ctxN">0</b>чипов в контексте</span>
+      <span id="l2badges" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></span>
+    </div>
+
+    <div class="l2grid">
+      <div class="l2panel">
+        <div class="l2ph">витки цикла</div>
+        <div class="l2ladder" id="l2ladder"></div>
+      </div>
+      <div class="l2panel l2panel-ctx">
+        <div class="l2ph">контекст сессии (родительской)</div>
+        <div class="l2ctxbar" id="l2ctx"></div>
+        <div class="l2ctx-leg"><span><i class="cx cx-mid" style="font-style:normal">промежуточные значения</i></span><span><i class="cx cx-fin" style="font-style:normal">только итог</i></span></div>
+      </div>
+    </div>
+
+    <div class="l2verdict" id="l2verdict"></div>
+
+    <div class="l2chart-wrap">
+      <div class="l2chart-t">мини-график: витки × контекст — все пять конфигураций</div>
+      <svg viewBox="0 0 640 302" id="l2chart" aria-hidden="true">
+        <g id="l2grid-g"></g>
+        <text x="331" y="298" text-anchor="middle" font-size="11" fill="#8b93a3" font-family="ui-monospace,Consolas,monospace">модельные витки (родитель) →</text>
+        <text x="14" y="150" font-size="11" fill="#8b93a3" font-family="ui-monospace,Consolas,monospace" transform="rotate(-90 14 150)">контекст, усл. ед. →</text>
+        <g id="l2pts">
+          <g class="lgpt act" id="lg-base">
+            <circle cx="470.5" cy="106.7" r="13" fill="none" stroke="#5b6472" stroke-width="1.6" opacity=".45"/>
+            <circle cx="470.5" cy="106.7" r="6.5" fill="#5b6472"/>
+            <text x="470.5" y="128" text-anchor="middle" font-size="11" font-weight="700" fill="#3a4353" font-family="ui-monospace,Consolas,monospace">база · 6в/7к</text>
+          </g>
+          <g class="lgpt" id="lg-agents">
+            <circle cx="470.5" cy="84.5" r="13" fill="none" stroke="#6b4fa3" stroke-width="1.6" opacity=".45"/>
+            <circle cx="470.5" cy="84.5" r="6.5" fill="#6b4fa3"/>
+            <text x="470.5" y="70" text-anchor="middle" font-size="11" font-weight="700" fill="#6b4fa3" font-family="ui-monospace,Consolas,monospace">AGENTS.md · 6в/8к</text>
+          </g>
+          <g class="lgpt" id="lg-skill">
+            <circle cx="540.3" cy="62.4" r="13" fill="none" stroke="#c96f10" stroke-width="1.6" opacity=".45"/>
+            <circle cx="540.3" cy="62.4" r="6.5" fill="#c96f10"/>
+            <text x="540.3" y="46" text-anchor="middle" font-size="11" font-weight="700" fill="#a35608" font-family="ui-monospace,Consolas,monospace">скилл · 7в/9к</text>
+          </g>
+          <g class="lgpt" id="lg-subagent">
+            <circle cx="191.5" cy="195.5" r="13" fill="none" stroke="#2f5fd7" stroke-width="1.6" opacity=".45"/>
+            <circle cx="191.5" cy="195.5" r="6.5" fill="#2f5fd7"/>
+            <text x="191.5" y="217" text-anchor="middle" font-size="11" font-weight="700" fill="#24489e" font-family="ui-monospace,Consolas,monospace">субагент · 2в/3к</text>
+          </g>
+          <g class="lgpt" id="lg-codemode">
+            <circle cx="121.8" cy="217.6" r="13" fill="none" stroke="#177a3e" stroke-width="1.6" opacity=".45"/>
+            <circle cx="121.8" cy="217.6" r="6.5" fill="#177a3e"/>
+            <text x="121.8" y="239" text-anchor="middle" font-size="11" font-weight="700" fill="#177a3e" font-family="ui-monospace,Consolas,monospace">Code Mode · 1в/2к</text>
+          </g>
+        </g>
+      </svg>
+      <div class="l2legend">
+        <i><span class="sw" style="background:#5b6472"></span>база: 6 витков / 7</i>
+        <i><span class="sw" style="background:#6b4fa3"></span>+ AGENTS.md: 6 / 8</i>
+        <i><span class="sw" style="background:#c96f10"></span>+ скилл: 7 / 9</i>
+        <i><span class="sw" style="background:#2f5fd7"></span>+ субагент: 2 / 3 (родитель)</i>
+        <i><span class="sw" style="background:#177a3e"></span>+ Code Mode: 1 / 2</i>
+      </div>
+    </div>
+
+    <p class="viz-note">Условные единицы контекста — число чипов (задача, инструкции, тела скиллов, промежуточные результаты, итог). У субагента показан контекст <b>родителя</b>: витки child-сессии в него не попадают. Формулировки — из заметки с маркировкой достоверности.</p>
+  </div>
+</section>
+
+<!-- ============ ВОПРОС 3 ============ -->
+<section class="card" id="q3">
+  <h2><span class="sec-n">5.</span> Вопрос 3: три harness</h2>
+  <div class="tbl-wrap">
+  <table style="font-size:13.4px">
+    <thead><tr><th>Механизм</th><th>OpenCode V2</th><th>Claude Code</th><th>Codex</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Формула цикла</b></td>
+        <td>модельные вызовы, продолжаемые tool-вызовами; финал — <code>session.idle</code> <span class="dm dm-docs">доки, косвенно</span></td>
+        <td>«Receive prompt → Evaluate and respond → Execute tools → Repeat… until it produces a response with no tool calls → Return result»; полный цикл = turn <span class="dm dm-docs">CC-доки</span></td>
+        <td>работает в цикле: вызывает модель и выполняет действия по её выходу; завершение — выполнение задачи или отмена пользователем <span class="dm dm-retell">пересказ Codex-док</span> (<a class="ext" href="https://developers.openai.com/codex/codex-manual.md">Codex manual</a>)</td>
+      </tr>
+      <tr>
+        <td><b>Лимит ходов</b></td>
+        <td><code>steps</code> → мягкий финал: summarize текстом <span class="dm dm-docs">доки</span></td>
+        <td><code>max_turns</code> (SDK, default no limit; исчерпание → <code>error_max_turns</code>), <code>--max-turns</code> для headless/CI, <code>--max-budget-usd</code>; интерактивным сессиям задокументированного лимита нет <span class="dm dm-docs">CC-доки</span></td>
+        <td>CLI-лимит ходов отсутствует осознанно — <a class="ext" href="https://github.com/openai/codex/issues/12336">issue #12336</a>: «unlikely that we'd expose a --max-turns CLI option», closed as not planned</td>
+      </tr>
+      <tr>
+        <td><b>«Не дай остановиться»</b></td>
+        <td>аналога Stop-хука в session-хуках нет — только событие <code>session.idle</code> <span class="dm dm-infer">вывод-оговорка</span></td>
+        <td>Stop-хук: <code>decision: "block"</code> «prevents Claude from stopping» + reason; защита — <code>stop_hook_active</code> и «8-consecutive-continuation cap» со сбросом при любом tool-вызове <span class="dm dm-docs">CC-доки</span> <span class="dm dm-retell">версионно-текучее — на октябрь 2026</span></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><b>Границы вместо лимита</b></td>
+        <td>permissions/deny как границы шага <span class="dm dm-docs">доки</span></td>
+        <td>read-only параллелятся, мутирующие — последовательно <span class="dm dm-docs">CC-доки</span></td>
+        <td>sandbox (read-only / workspace-write / danger-full-access) × approval policy (untrusted / on-request / never / granular); circuit breaker — «In the current open-source implementation» — прерывание хода после 3 подряд denials или 10 за последние 50 reviews <span class="dm dm-docs">Codex-доки</span></td>
+      </tr>
+      <tr>
+        <td><b>Хуки по каденциям</b></td>
+        <td>session-уровень (<code>prompt</code>, <code>context</code>, …), per-tool, retry <span class="dm dm-docs">доки</span></td>
+        <td>per session (SessionStart/End), per turn (UserPromptSubmit, Stop, StopFailure), per tool call (PreToolUse/PostToolUse) <span class="dm dm-docs">CC-доки</span></td>
+        <td>авто-ревью как встроенный перехватчик <span class="dm dm-docs">Codex-доки</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small">Источники колонок: Claude Code — <a class="ext" href="https://code.claude.com/docs/en/agent-sdk/agent-loop">agent loop</a> и <a class="ext" href="https://code.claude.com/docs/en/hooks">hooks</a>; Codex — <a class="ext" href="https://developers.openai.com/codex/codex-manual.md">Codex manual</a> и разделы agent-approvals-security / sandboxing-auto-review.</p>
+
+  <div class="note warn"><b>Философии остановки</b> <span class="dm dm-infer">вывод</span>: OpenCode — лимит с мягким финалом (summarize); Claude Code — лимит с ошибкой плюс уникальный режим «не дай остановиться» (Stop-хук с предохранителем); Codex — сознательный отказ от лимита в пользу sandbox × approval + circuit breaker. Прямая аналогия «Stop-хук ↔ approval policy» некорректна: общее только то, что остановка — управляемое событие.</div>
+
+  <p>Контекст для Code Mode: Cloudflare формулирует аргумент так — «the output of each tool call must feed into the LLM's neural network, just to be copied over to the inputs of the next call… When the LLM can write code, it can skip all that» (<a class="ext" href="https://blog.cloudflare.com/code-mode/">Cloudflare code mode</a>; <a class="ext" href="https://developers.cloudflare.com/agents/tools/codemode/">developers.cloudflare.com</a>) — конкретных цифр кратности в первоисточниках нет, не приписываем.</p>
+</section>
+
+<!-- ============ РЕЗЮМЕ ============ -->
+<section class="card" id="summary">
+  <h2><span class="sec-n">6.</span> Agent loop одним взглядом</h2>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Вопрос</th><th>Ответ</th></tr></thead>
+    <tbody>
+      <tr><td>Что такое цикл</td><td>модельный вызов → tool-вызовы → результат → следующий вызов; «agent-loop execution» стартует по <code>POST /api/session/{sessionID}/prompt</code> <span class="dm dm-docs">доки</span></td></tr>
+      <tr><td>Когда конец</td><td>модель без tool-вызовов → <code>session.idle</code>; <code>steps</code> → summarize; plain rejection → конец шага; терминальная ошибка после retry — четыре механизма <span class="dm dm-infer">вывод</span></td></tr>
+      <tr><td><code>steps</code></td><td>потолок модельных шагов; финальный шаг — без инструментов, текстовый итог; новый ввод сбрасывает; дефолт в доках не указан</td></tr>
+      <tr><td>Deny</td><td>deny/rejection-with-feedback → модель видит причину и продолжает; plain rejection → «ends the current step» (смысл для цикла в доках не раскрыт)</td></tr>
+      <tr><td>Компакция</td><td>не остановка: пауза/фон, сессия продолжается; переполнение — компакт, retry once, затем ошибка</td></tr>
+      <tr><td>Что раздувает цикл</td><td>загрузка тела скилла (+1 виток <span class="dm dm-infer">вывод</span>), ложные витки от слабых description</td></tr>
+      <tr><td>Что сжимает цикл</td><td>Code Mode (меньше витков и контекста), субагенты (цикл в чистом child-контексте), точные инструкции (без лишних витков)</td></tr>
+      <tr><td>vs Claude Code</td><td>CC: turn-based, <code>max_turns</code> с ошибкой, Stop-хук «не дай остановиться» (с cap)</td></tr>
+      <tr><td>vs Codex</td><td>нет лимита ходов; sandbox × approval policy + circuit breaker</td></tr>
+      <tr><td>Системная параллель</td><td>генерация — цикл по токену (<a href="../01_how-to-read-llm-architecture.md">заметка 01</a>); harness — цикл по шагу (эта заметка)</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ ССЫЛКИ ============ -->
+<section class="card links" id="links">
+  <h2>Ссылки</h2>
+  <h3>Внутренние</h3>
+  <ul>
+    <li><a href="07_opencode-codemode.md">07. Code Mode в OpenCode V2</a><span class="lnk-desc">лестница вызовов vs одна программа: главный рычаг сжатия цикла из вопроса 2.</span></li>
+    <li><a href="05_opencode-commands-hooks.md">05. Команды и хуки в OpenCode V2</a><span class="lnk-desc">хуки <span class="mono">context</span> и <span class="mono">retry</span>, финальность явного deny — инструменты наблюдения за петлёй.</span></li>
+    <li><a href="04_opencode-multiagent.md">04. Мультиагенты в OpenCode V2</a><span class="lnk-desc">поля агента (<span class="mono">steps</span> в том числе) и субагенты как вынос цикла в чистый контекст.</span></li>
+    <li><a href="03_opencode-architecture-config.md">03. Установка и настройка OpenCode V2</a><span class="lnk-desc">зонтик <span class="mono">experimental.*</span>: <span class="mono">subagent_depth</span>, <span class="mono">background_compaction</span>, <span class="mono">continue_loop_on_deny</span> (deprecated).</span></li>
+    <li><a href="02_opencode-v1-vs-v2.md">02. OpenCode v1 vs V2</a><span class="lnk-desc">переименование <span class="mono">maxSteps</span>→<span class="mono">steps</span> и судьба <span class="mono">continue_loop_on_deny</span> при миграции.</span></li>
+    <li><a href="../01_how-to-read-llm-architecture.md">01. Как читать архитектуру LLM-моделей</a><span class="lnk-desc">параллель уровней: генерация — цикл по токену, harness — цикл по шагу.</span></li>
+    <li><a href="../../../zettelkasten/AI_start.md">Установка openCode &amp; OMO</a><span class="lnk-desc">историческая точка: уже в сетапе v1 задача осознавалась как «диалог в несколько итераций».</span></li>
+  </ul>
+
+  <h3>Внешние · канон</h3>
+  <ul>
+    <li><a class="ext" href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting (Yao et al., 2022)</a><span class="lnk-desc">Reason→Act→Observe.</span></li>
+    <li><a class="ext" href="https://www.anthropic.com/research/building-effective-agents">Anthropic: building effective agents</a><span class="lnk-desc">«LLMs using tools based on environmental feedback in a loop», stopping conditions.</span></li>
+  </ul>
+
+  <h3>Внешние · документация OpenCode V2 <span class="dm dm-docs">доки</span></h3>
+  <ul>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/build/plugins/server/">Server-плагины: хук context, deny-семантика, retry</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/agents/">Agents: steps и summarize-финал</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/compaction/">Compaction: Limits → Recovery — формула переполнения</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/config/">Config: background_compaction</a></li>
+    <li><a class="ext" href="https://opencode.ai/config.json">Схема config.json</a><span class="lnk-desc">формулировка steps, deprecated-поля.</span></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/permissions/">Permissions: финальность deny</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/instructions/">Instructions: AGENTS.md, ленивая загрузка</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/skills/">Skills: листинг per step, tool skill</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/tools">Tools: Code Mode execute</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/api/">API reference: эндпоинт prompt («schedule agent-loop execution»)</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/build/plugins/migrate-v1/">Migrate-v1 для плагинов: событие session.idle</a></li>
+    <li><a class="ext" href="https://opencode.ai/v2/docs/migrate-v1/">Гайд миграции V1 → V2</a><span class="lnk-desc">судьба <span class="mono">continue_loop_on_deny</span>.</span></li>
+  </ul>
+
+  <h3>Внешние · код OpenCode <span class="dm dm-code">код, не доки</span></h3>
+  <ul>
+    <li><a class="ext" href="https://github.com/anomalyco/opencode/blob/v1/packages/opencode/src/session/prompt.ts">prompt.ts (ветка v1) — раннер: while(true), «Keep the loop running»</a></li>
+    <li><a class="ext" href="https://github.com/anomalyco/opencode/issues/45328">Issue #45328 — механика MAXIMUM STEPS REACHED</a></li>
+    <li><a class="ext" href="https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/runner/max-steps.ts">max-steps.ts — реализация последнего шага</a></li>
+  </ul>
+
+  <h3>Внешние · Claude Code</h3>
+  <ul>
+    <li><a class="ext" href="https://code.claude.com/docs/en/agent-sdk/agent-loop">Agent loop (SDK)</a><span class="lnk-desc">turn, no-tool-calls, <span class="mono">max_turns</span>.</span></li>
+    <li><a class="ext" href="https://code.claude.com/docs/en/hooks">Hooks</a><span class="lnk-desc">каденции, Stop-хук и cap.</span></li>
+  </ul>
+
+  <h3>Внешние · Codex</h3>
+  <ul>
+    <li><a class="ext" href="https://developers.openai.com/codex/codex-manual.md">Codex manual</a><span class="lnk-desc">работа в цикле; разделы agent-approvals-security и sandboxing/auto-review — circuit breaker.</span></li>
+    <li><a class="ext" href="https://github.com/openai/codex/issues/12336">Issue #12336 (openai/codex)</a><span class="lnk-desc">отказ от --max-turns, closed as not planned.</span></li>
+  </ul>
+
+  <h3>Внешние · Cloudflare</h3>
+  <ul>
+    <li><a class="ext" href="https://blog.cloudflare.com/code-mode/">Code mode (блог)</a> и <a class="ext" href="https://developers.cloudflare.com/agents/tools/codemode/">developers.cloudflare.com: codemode</a><span class="lnk-desc">аргумент «skip all that» без цифр кратности.</span></li>
+  </ul>
+</section>
+
+<footer>
+  HTML-версия материала <a class="mono" href="08_opencode-agent-loop.md">llm_harness/opencode_v2/08_opencode-agent-loop.md</a> · автономная страница со встроенными интерактивами · работает офлайн
+</footer>
+
+</div>
+
+<script>
+/* ================= INTERACTIVE 1: loop simulator ================= */
+(function(){
+'use strict';
+function $(id){return document.getElementById(id);}
+var logEl=$('l1log'), stepNum=$('l1stepnum'), stepSub=$('l1stepsub'),
+    statusEl=$('l1status'), dotEl=$('l1dot'), cat=$('l1catalog'),
+    markWrap=$('l1markwrap'), markDot=$('l1markdot'), ringSvg=$('l1ring'),
+    outWrap=$('l1outcome'), outBadge=$('l1outbadge'), outTitle=$('l1outtitle'),
+    outBody=$('l1outbody'), outExtra=$('l1outextra'),
+    perm=$('l1perm'), slider=$('l1steps'), sliderVal=$('l1stepsval'),
+    finWrap=$('l1finishwrap'), finSel=$('l1finishat'),
+    playBtn=$('l1play');
+var SCN={
+  self:'Модель завершила сама',
+  steps:'Исчерпан steps',
+  reject:'Plain rejection',
+  provider:'Сбой провайдера'
+};
+var scenario='self', S=null, timer=null;
+
+function limit(){return +slider.value;}
+function stopTimer(){if(timer){clearInterval(timer);timer=null;} playBtn.textContent='\u25B6 Play';}
+function setMark(phase){
+  markDot.classList.remove('tools','result','err','final');
+  if(phase==='tools'){markWrap.style.transform='rotate(120deg)';markDot.classList.add('tools');}
+  else if(phase==='result'){markWrap.style.transform='rotate(240deg)';markDot.classList.add('result');}
+  else if(phase==='err'){markWrap.style.transform='rotate(0deg)';markDot.classList.add('err');}
+  else if(phase==='final'){markWrap.style.transform='rotate(0deg)';markDot.classList.add('final');}
+  else {markWrap.style.transform='rotate(0deg)';}
+}
+function setStatus(txt,cls){
+  statusEl.innerHTML='<span class="ring-dot '+(cls||'')+'" id="l1dot"></span>'+txt;
+  statusEl.className='l1status'+(cls?' '+cls:'');
+}
+function log(type,text,tag){
+  var d=document.createElement('div');
+  d.className='le le-'+type;
+  var sl=tag!==undefined?tag:(S&&S.step>0?('шаг '+S.step):'—');
+  d.innerHTML='<span class="le-s">'+sl+'</span><span class="le-t">'+text+'</span>';
+  logEl.appendChild(d);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add('on');});});
+  logEl.scrollTop=logEl.scrollHeight;
+}
+function clampFinish(){
+  var st=limit(),cur=+finSel.value||3;
+  if(cur<2)cur=2; if(cur>st)cur=st;
+  var opts='';
+  for(var i=2;i<=st;i++){opts+='<option value="'+i+'"'+(i===cur?' selected':'')+'>'+i+'</option>';}
+  finSel.innerHTML=opts;
+}
+function reset(){
+  stopTimer();
+  S={step:0,phase:'pre',finished:false,awaiting:false,failBeat:0,round:1,permDone:false,
+     finishAt:(scenario==='self')?(+finSel.value||3):Infinity};
+  logEl.innerHTML='';
+  perm.classList.add('hidden');
+  outWrap.classList.remove('show');
+  outExtra.classList.add('hidden');
+  cat.classList.remove('off','lit');
+  ringSvg.classList.remove('done','status-err');
+  setMark('model');
+  stepNum.textContent='—';
+  stepSub.textContent='лимит steps: '+limit();
+  setStatus('ожидание: Play или Шаг','');
+  log('sys','симуляция готова · сценарий: «'+SCN[scenario]+'» · лимит steps = '+limit(),'\u2014');
+}
+var MECH={
+  a:{n:'Механизм а',t:'Модель перестала звать инструменты',
+     b:'Ответ без tool-вызовов \u2192 событие <code>session.idle</code> («Session completed»). Прямой формулы «сессия завершается, когда X» в доках нет — механизм реконструирован из косвенных формулировок <span class="dm dm-infer">вывод</span>, само событие — <span class="dm dm-docs">доки</span>.'},
+  b:{n:'Механизм б',t:'Исчерпан steps — мягкий финал',
+     b:'«On the final step, OpenCode removes tools and asks the model to summarize in text. New user input resets the allowance» <span class="dm dm-docs">доки</span>. Механика последнего шага — из кода: <code>toolChoice: "none"</code>, промпт «MAXIMUM STEPS REACHED…» <span class="dm dm-code">код, не доки</span>. Исчерпание — <b>не ошибка</b>, а принудительный текстовый финал. Дефолт steps в доках не указан.<br><br><button class="btn btn-primary" id="l1newin">\u27A6 Новый ввод пользователя (сброс счётчика)</button>'},
+  v:{n:'Механизм в',t:'Plain rejection — конец текущего шага',
+     b:'«A plain rejection ends the current step» <span class="dm dm-docs">доки</span>, дословно. <b>Честная оговорка:</b> что «конец шага» значит для цикла в целом, в доках не раскрыто. Контраст: deny-правило или отклонение с фидбеком \u2192 <code>Tool.Error</code> с причиной — «the model sees it and continues», цикл <b>не рвёт</b> <span class="dm dm-docs">доки</span>.'},
+  g:{n:'Механизм г',t:'Терминальная ошибка модели',
+     b:'Retry-хук — «Override the retry decision for a provider failure»: может сделать ошибку повторяемой или наложить вето, но «built-in maximum attempt count remains a hard limit» <span class="dm dm-docs">доки</span>. После исчерпания попыток — терминальная ошибка: циклу нечем продолжаться <span class="dm dm-infer">вывод</span>.'}
+};
+function finish(key,extra){
+  S.finished=true;
+  stopTimer();
+  var m=MECH[key];
+  outBadge.textContent=m.n;
+  outTitle.textContent=m.t;
+  outBody.innerHTML=m.b;
+  if(extra){outExtra.innerHTML=extra;outExtra.classList.remove('hidden');}
+  else{outExtra.classList.add('hidden');}
+  outWrap.classList.add('show');
+  var ni=$('l1newin');
+  if(ni){ni.addEventListener('click',function(){
+    S.round=2;S.step=0;S.phase='pre';S.finishAt=2;S.finished=false;
+    cat.classList.remove('off');
+    ringSvg.classList.remove('done');
+    outWrap.classList.remove('show');
+    setStatus('новый ввод — счётчик steps сброшен','ok');
+    log('sys','новый ввод пользователя \u2192 «New user input resets the allowance» — счётчик steps сброшен <span class="dm dm-docs">доки</span>','ввод');
+  });}
+}
+function beat(){
+  if(!S||S.finished||S.awaiting)return;
+  switch(S.phase){
+    case 'pre':
+      if(S.round===2){stepNum.textContent='шаг 1';S.step=1;S.phase='model';setMark('model');
+        log('model','виток 1 — модельный вызов нового цикла');setStatus('цикл идёт','run');}
+      else{S.step=1;stepNum.textContent='шаг 1';S.phase='model';setMark('model');
+        log('sys','пользовательский ввод \u2192 <code>POST /api/session/{sessionID}/prompt</code> — «schedule agent-loop execution» <span class="dm dm-docs">доки</span>','ввод');
+        log('model','виток 1 — модельный вызов');setStatus('цикл идёт','run');}
+      break;
+    case 'model':
+      if(scenario==='provider'&&S.step===2&&S.round===1){
+        S.phase='fail';S.failBeat=1;setMark('err');ringSvg.classList.add('status-err');
+        setStatus('сбой провайдера','err');
+        log('err','<b>сбой провайдера</b>: модельный вызов не удался');
+      } else if(S.step>=S.finishAt){
+        S.phase='selffinal';setMark('final');
+        log('model','модель отвечает <b>без tool-вызовов</b> — финальный текстовый ответ');
+        setStatus('финальный ответ — инструменты не звались','ok');
+      } else if(S.step>=limit()){
+        S.phase='maxfinal';
+        cat.classList.remove('lit');cat.classList.add('off');
+        log('sys','шаг = steps («positive maximum of model steps»): инструменты отнимаются — «On the final step, OpenCode removes tools and asks the model to summarize in text» <span class="dm dm-docs">доки</span>');
+        log('quote','«MAXIMUM STEPS REACHED\u2026 Tools are disabled until next user input. Respond with text only» · <code>toolChoice: "none"</code> <span class="dm dm-code">код, не доки</span>');
+        setStatus('последний шаг: инструменты отключены','warn');
+      } else if(scenario==='reject'&&S.step===2&&!S.permDone&&S.round===1){
+        S.phase='perm';S.awaiting=true;
+        perm.classList.remove('hidden');
+        setStatus('tool-вызов ожидает подтверждения','warn');
+        log('tool','tool-вызов <code>edit(src/agent.ts)</code> — ожидает подтверждения пользователя');
+        stopTimer();
+      } else {
+        S.phase='tools';setMark('tools');
+        cat.classList.add('lit');
+        log('tool','модель зовёт инструменты: <code>read()</code> + <code>grep()</code>');
+      }
+      break;
+    case 'tools':
+      S.phase='result';setMark('result');
+      cat.classList.remove('lit');
+      log('res','результаты tool-вызовов \u2192 в контекст');
+      break;
+    case 'result':
+      S.step++;stepNum.textContent='шаг '+S.step;S.phase='model';setMark('model');
+      log('model','виток '+S.step+' — следующий модельный вызов (tool-driven continuation)');
+      setStatus('цикл идёт','run');
+      break;
+    case 'selffinal':
+      S.phase='done';ringSvg.classList.add('done');
+      log('ev','session.idle — «Session completed» <span class="dm dm-docs">доки</span>');
+      setStatus('session.idle · Session completed','ok');
+      if(scenario==='reject'){
+        finish('a','В этом прогоне: deny с причиной <b>не оборвал</b> цикл — модель увидела <code>Tool.Error</code> с причиной и на витке 3 завершила работу уже без инструментов \u2192 сработал механизм а. «The model sees it and continues» <span class="dm dm-docs">доки</span>.');
+      } else if(scenario==='steps'&&S.round===2){
+        finish('a','После «нового ввода» счётчик steps сбросился <span class="dm dm-docs">доки</span> — новый цикл завершился механизмом а: модель сама дала ответ без tool-вызовов.');
+      } else {
+        finish('a','');
+      }
+      break;
+    case 'maxfinal':
+      S.phase='done';ringSvg.classList.add('done');setMark('final');
+      log('model','модель подытоживает текстом — принудительный финал, <b>не ошибка</b> <span class="dm dm-docs">доки</span>');
+      setStatus('мягкий финал: summarize текстом','warn');
+      finish('b','');
+      break;
+    case 'fail':
+      if(S.failBeat===1){S.failBeat=2;
+        log('sys','retry-политика: хук <code>retry</code> — «Override the retry decision for a provider failure», может повторить ошибку или наложить вето <span class="dm dm-docs">доки</span>');
+      } else if(S.failBeat===2){S.failBeat=3;
+        log('model','повторная попытка модельного вызова\u2026');
+      } else if(S.failBeat===3){S.failBeat=4;
+        log('err','снова сбой провайдера');
+      } else if(S.failBeat===4){S.failBeat=5;
+        log('quote','«built-in maximum attempt count remains a hard limit» <span class="dm dm-docs">доки</span> — попытки исчерпаны: hard limit');
+      } else {
+        S.phase='done';ringSvg.classList.add('done');
+        log('err','<b>терминальная ошибка</b> — циклу нечем продолжаться <span class="dm dm-infer">вывод</span>');
+        setStatus('терминальная ошибка','err');
+        finish('g','');
+      }
+      break;
+    default: break;
+  }
+}
+
+/* wiring */
+var scnBtns=document.querySelectorAll('.l1scn');
+for(var i=0;i<scnBtns.length;i++){
+  scnBtns[i].addEventListener('click',function(){
+    for(var j=0;j<scnBtns.length;j++){scnBtns[j].classList.remove('on');}
+    this.classList.add('on');
+    scenario=this.getAttribute('data-sc');
+    finWrap.style.display=(scenario==='self')?'inline-flex':'none';
+    reset();
+  });
+}
+slider.addEventListener('input',function(){
+  sliderVal.textContent=this.value;
+  stepSub.textContent='лимит steps: '+this.value;
+  if(scenario==='self'){clampFinish();
+    if(S&&!S.finished&&S.phase==='pre'){S.finishAt=+finSel.value;}
+  }
+});
+finSel.addEventListener('change',function(){if(S&&S.phase==='pre'&&scenario==='self'){S.finishAt=+this.value;}});
+playBtn.addEventListener('click',function(){
+  if(timer){stopTimer();return;}
+  if(!S||S.finished||S.awaiting)return;
+  playBtn.textContent='\u275A\u275A Пауза';
+  beat();
+  timer=setInterval(function(){
+    if(!S||S.finished||S.awaiting){stopTimer();return;}
+    beat();
+  },950);
+});
+$('l1stepbtn').addEventListener('click',function(){stopTimer();beat();});
+$('l1reset').addEventListener('click',reset);
+$('l1plain').addEventListener('click',function(){
+  if(!S||S.phase!=='perm')return;
+  perm.classList.add('hidden');S.awaiting=false;S.phase='done';
+  cat.classList.remove('lit');
+  ringSvg.classList.add('done');setMark('final');
+  log('ev','plain rejection \u2192 «ends the current step» <span class="dm dm-docs">доки</span>, дословно');
+  setStatus('конец шага (plain rejection)','warn');
+  finish('v','');
+});
+$('l1fb').addEventListener('click',function(){
+  if(!S||S.phase!=='perm')return;
+  perm.classList.add('hidden');S.awaiting=false;S.permDone=true;S.finishAt=3;
+  S.phase='result';setMark('result');
+  log('res','отклонение с причиной \u2192 <code>Tool.Error</code>: «файл под защитой — используй read-only анализ». Модель видит причину и продолжает <span class="dm dm-docs">доки</span>');
+  S.step++;stepNum.textContent='шаг '+S.step;
+  S.phase='model';setMark('model');
+  log('model','виток '+S.step+' — следующий модельный вызов: модель учитывает причину отклонения');
+  setStatus('цикл продолжается','run');
+});
+finWrap.style.display=(scenario==='self')?'inline-flex':'none';
+clampFinish();
+reset();
+})();
+
+/* ================= INTERACTIVE 2: levers ================= */
+(function(){
+'use strict';
+function $(id){return document.getElementById(id);}
+var F=['auth.ts','config.ts','agent.ts','tools.ts','prompt.ts'];
+
+function readsEvents(skipListing){
+  var ev=[];
+  for(var i=0;i<5;i++){
+    ev.push({k:'p',n:i+2,model:'модель: читаю файл '+(i+1)+'/5',tool:'read('+F[i]+')',
+      res:'содержимое '+F[i]+' \u2192 в контекст',chips:[['mid',F[i]]],skillist:!skipListing});
+  }
+  return ev;
+}
+
+var CFG={
+  base:{
+    events:[{k:'p',n:1,model:'планирую: разберу пять файлов по одному',tool:'read(auth.ts)',
+      res:'содержимое auth.ts \u2192 в контекст',chips:[['mid','auth.ts']],skillist:false}]
+      .concat(readsEvents(true).slice(1))
+      .concat([{k:'p',n:6,final:true,model:'всё прочитано — даю сводку',tool:null,
+        res:'финальный ответ без tool-вызовов \u2192 session.idle',chips:[['fin','сводка (итог)']],skillist:false},
+        {k:'badge',cls:'warn',t:'промежуточные оседают в контексте'},
+        {k:'badge',cls:'neutral',t:'лестница: 6 витков'}]),
+    verdict:'<b>Базовый цикл.</b> Каждый <code>read</code> — отдельный модельный виток, результат каждого вызова возвращается в контекст и порождает следующий модельный вызов: «runs for the agent loop, including tool-driven continuations» <span class="dm dm-docs">доки, косвенно</span>. Под капотом V1-раннера цикл — буквально <code>while(true)</code> с комментарием «Keep the loop running\u2026» <span class="dm dm-code">код, не доки</span>. Промежуточные значения (содержимое пяти файлов) остаются в контексте навсегда — до компакции.',
+    chart:'lg-base'
+  },
+  agents:{
+    events:[{k:'inj'}]
+      .concat([{k:'p',n:1,model:'планирую по инструкциям проекта: читаю файлы по одному',tool:'read(auth.ts)',
+        res:'содержимое auth.ts \u2192 в контекст',chips:[['mid','auth.ts']],skillist:false}])
+      .concat(readsEvents(true).slice(1))
+      .concat([{k:'p',n:6,final:true,model:'всё прочитано — даю сводку',tool:null,
+        res:'финальный ответ без tool-вызовов \u2192 session.idle',chips:[['fin','сводка (итог)']],skillist:false},
+        {k:'badge',cls:'ok',t:'витков не добавило'},
+        {k:'badge',cls:'infer',t:'меньше ложных витков — вывод'}]),
+    verdict:'<b>+ AGENTS.md.</b> Изменения инструкций инжектируются «before the next model request» и «at the next step boundary without queuing a message turn» — <b>не добавляют модельный виток</b> <span class="dm dm-docs">доки</span>: в контексте появился новый чип, а счётчик витков не изменился. Глобальный файл и все AGENTS.md от рабочей директории вверх грузятся сразу, вложенные — лениво; <code>CLAUDE.md</code> не используется <span class="dm dm-docs">доки</span>. Точные инструкции \u2192 меньше ложных витков <span class="dm dm-infer">вывод</span>.',
+    chart:'lg-agents'
+  },
+  skill:{
+    events:[{k:'p',n:1,skillist:true,model:'в листинге вижу скилл summarize-5files — загружаю тело',
+      tool:'skill(summarize-5files)',res:'тело скилла добавлено в разговор — остаётся в контексте',
+      chips:[['skl','тело скилла · постоянно'],['lst','листинг · каждый шаг']]}]
+      .concat(readsEvents(false))
+      .concat([{k:'p',n:7,final:true,skillist:true,model:'собираю сводку по шаблону из тела скилла',tool:null,
+        res:'финальный ответ без tool-вызовов \u2192 session.idle',chips:[['fin','сводка (итог)']]},
+        {k:'badge',cls:'infer',t:'+1 виток на загрузку тела — вывод'},
+        {k:'badge',cls:'infer',t:'description определяет выбор и ложные витки — вывод'}]),
+    verdict:'<b>+ Скилл.</b> На каждом шаге модель видит лёгкий листинг — «only the ID, name, and description, not the full Markdown body» <span class="dm dm-docs">доки</span>; тело догружается инструментом <code>skill</code>: «Adds the Markdown body\u2026 to the conversation» <span class="dm dm-docs">доки</span>. Плата: загрузка тела = <b>+1 виток</b> цикла и постоянное место в контексте <span class="dm dm-infer">вывод</span>; качество <code>description</code> определяет выбор скилла и число ложных витков <span class="dm dm-infer">вывод</span>. В прогоне: 7 витков против 6 у базы.',
+    chart:'lg-skill'
+  },
+  subagent:{
+    events:[{k:'p',n:1,model:'делегирую разбор в child-сессию',tool:'subagent(разбери 5 файлов)',
+      res:'цикл ушёл из родительского контекста \u2014 родитель ждёт',chips:[],skillist:false},
+      {k:'chead'}]
+      .concat((function(){
+        var ev=[];
+        for(var i=0;i<5;i++){ev.push({k:'c',n:i+1,model:'субагент: читаю файл '+(i+1)+'/5',
+          tool:'read('+F[i]+')',res:'\u2192 child-контекст',chips:[['mid',F[i]]]});}
+        ev.push({k:'c',n:6,final:true,model:'субагент собрал сводку',tool:null,res:'итог готов',chips:[['fin','итог']]});
+        return ev;
+      })())
+      .concat([{k:'cres',res:'в родителя вернулся только итог субагента',chips:[['fin','итог субагента']]},
+        {k:'p',n:2,final:true,model:'собираю ответ из итога',tool:null,
+          res:'финальный ответ без tool-вызовов \u2192 session.idle',chips:[['fin','сводка (итог)']],skillist:false},
+        {k:'badge',cls:'ok',t:'fresh context — доки'},
+        {k:'badge',cls:'ok',t:'depth = 1 — доки'}]),
+    verdict:'<b>+ Субагент.</b> «Subagents run with fresh context in foreground or background child sessions» <span class="dm dm-docs">доки</span>: цикл читает те же пять файлов, но в <b>child-контексте</b> — его витки и промежуточные значения в родителя не попадают, родитель получает только итог <span class="dm dm-infer">вывод</span>. <code>experimental.subagent_depth</code> — «Defaults to 1, so a subagent cannot start another subagent» <span class="dm dm-docs">доки</span>. В родителе: 2 витка и 3 чипа против 6/7 у базы.',
+    chart:'lg-subagent'
+  },
+  codemode:{
+    events:[{k:'p',n:1,fan:true,model:'пишу одну программу: веер из 5 параллельных чтений и сборка сводки',
+      tool:'execute(программа)',res:'программа вернула сводку — промежуточные значения остались внутри программы',
+      chips:[['fin','сводка (только итог)']],skillist:false},
+      {k:'badge',cls:'ok',t:'1 виток вместо лестницы'},
+      {k:'badge',cls:'ok',t:'промежуточные — мимо контекста — доки'}],
+    verdict:'<b>+ Code Mode.</b> <code>execute</code> — «parallel independent calls and for processing results without adding every intermediate value to the model context» <span class="dm dm-docs">доки</span>: веер из пяти чтений живёт внутри одной программы, лестница вызовов схлопывается <span class="dm dm-infer">вывод</span>, в контексте — только итог. Меньше витков и меньше контекста на виток; полный разбор — в <a href="07_opencode-codemode.md">заметке 07</a>.',
+    chart:'lg-codemode'
+  }
+};
+
+var tabs=document.querySelectorAll('#l2tabs .l2tab'),
+    ladder=$('l2ladder'), ctxbar=$('l2ctx'), badgesEl=$('l2badges'),
+    turnsN=$('l2turnsN'), ctxN=$('l2ctxN'), verdictEl=$('l2verdict');
+var cur='base', timer=null, evIdx=0, turnCount=0, chipCount=0, childCtx=null, childRows=null, childPanel=null;
+
+function stopTimer(){if(timer){clearInterval(timer);timer=null;}}
+function chip(cls,t){
+  var s=document.createElement('span');
+  s.className='cx cx-'+cls;
+  s.textContent=t;
+  ctxbar.appendChild(s);
+  chipCount++;ctxN.textContent=chipCount;
+}
+function badgeHtml(cls,t){
+  var dm='';
+  if(/\u2014 \u0434\u043E\u043A\u0438/.test(t)){dm=' <span class="dm dm-docs">доки</span>';t=t.replace(/\s*\u2014 \u0434\u043E\u043A\u0438$/,'');}
+  else if(/\u2014 \u0432\u044B\u0432\u043E\u0434/.test(t)){dm=' <span class="dm dm-infer">вывод</span>';t=t.replace(/\s*\u2014 \u0432\u044B\u0432\u043E\u0434$/,'');}
+  return '<span class="l2badge '+cls+'" style="opacity:0">'+t+dm+'</span>';
+}
+function rowHtml(ev,label,extraCls){
+  var h='<div class="l2rn">'+label+'</div><div class="l2rb">';
+  h+='<div class="l2rm">'+ev.model+'</div>';
+  if(ev.tool){h+='<div class="l2rt">tool: '+ev.tool+'</div>';}
+  if(ev.fan){
+    h+='<div class="l2fan"><span>auth.ts</span><span>config.ts</span><span>agent.ts</span><span>tools.ts</span><span>prompt.ts</span></div>';
+  }
+  if(ev.skillist){h+='<div class="l2skl"><span>ID</span><span>name</span><span>description</span><span>\u2190 листинг скиллов на этом шаге</span></div>';}
+  if(ev.res){h+='<div class="l2rr">\u2192 '+ev.res+'</div>';}
+  h+='</div>';
+  return h;
+}
+function ensureChild(){
+  if(childPanel)return;
+  childPanel=document.createElement('div');
+  childPanel.className='l2child';
+  childPanel.innerHTML='<div class="l2child-h">child-сессия \u00B7 fresh context \u00B7 субагент</div>'+
+    '<div class="l2child-rows"></div>'+
+    '<div class="l2child-ctx"></div>'+
+    '<div class="l2child-note">витки субагента НЕ оседают в контексте родителя \u00B7 <code>experimental.subagent_depth</code> = 1: «a subagent cannot start another subagent» <span class="dm dm-docs">доки</span></div>';
+  ladder.appendChild(childPanel);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){childPanel.classList.add('on');});});
+  childRows=childPanel.querySelector('.l2child-rows');
+  childCtx=childPanel.querySelector('.l2child-ctx');
+}
+function runEvent(ev){
+  var d;
+  if(ev.k==='p'){
+    turnCount++;turnsN.textContent=turnCount;
+    d=document.createElement('div');
+    d.className='l2row'+(ev.final?' final':'');
+    d.innerHTML=rowHtml(ev,'\u0432\u0438\u0442\u043E\u043A '+ev.n);
+    ladder.appendChild(d);
+    requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add('on');});});
+    if(ev.chips){for(var i=0;i<ev.chips.length;i++){chip(ev.chips[i][0],ev.chips[i][1]);}}
+  } else if(ev.k==='inj'){
+    d=document.createElement('div');
+    d.className='l2row inj';
+    d.innerHTML='<div class="l2rn">\u0438\u043D\u0436\u0435\u043A\u0442</div><div class="l2rb">'+
+      '<div class="l2rm">AGENTS.md \u2192 «before the next model request»</div>'+
+      '<div class="l2rr">\u00ABat the next step boundary without queuing a message turn\u00BB — \u0431\u0435\u0437 \u043D\u043E\u0432\u043E\u0433\u043E \u0432\u0438\u0442\u043A\u0430 <span class="dm dm-docs">доки</span></div></div>';
+    ladder.appendChild(d);
+    requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add('on');});});
+    chip('instr','AGENTS.md');
+  } else if(ev.k==='chead'){
+    ensureChild();
+  } else if(ev.k==='c'){
+    ensureChild();
+    d=document.createElement('div');
+    d.className='l2crow'+(ev.final?' final':'');
+    d.innerHTML='<span class="n">\u0448\u0430\u0433 '+ev.n+'</span><span>'+(ev.tool?'<span class="t">'+ev.tool+'</span>':'')+ev.model+'</span>';
+    childRows.appendChild(d);
+    requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add('on');});});
+    if(ev.chips&&childCtx){for(var j=0;j<ev.chips.length;j++){
+      var s=document.createElement('span');
+      s.className='cx '+(ev.chips[j][0]==='fin'?'fin':'');
+      s.textContent=ev.chips[j][1];
+      childCtx.appendChild(s);
+    }}
+  } else if(ev.k==='cres'){
+    d=document.createElement('div');
+    d.className='l2row cres';
+    d.innerHTML='<div class="l2rn">\u0440\u043E\u0434\u0438\u0442\u0435\u043B\u044C</div><div class="l2rb"><div class="l2rm">'+ev.res+'</div>'+
+      '<div class="l2rr">\u043F\u0440\u043E\u043C\u0435\u0436\u0443\u0442\u043E\u0447\u043D\u044B\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F \u043E\u0441\u0442\u0430\u043B\u0438\u0441\u044C \u0432 child-\u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0435</div></div>';
+    ladder.appendChild(d);
+    requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add('on');});});
+    if(ev.chips){for(var m=0;m<ev.chips.length;m++){chip(ev.chips[m][0],ev.chips[m][1]);}}
+  } else if(ev.k==='badge'){
+    badgesEl.insertAdjacentHTML('beforeend',badgeHtml(ev.cls,ev.t));
+    var b=badgesEl.lastElementChild;
+    requestAnimationFrame(function(){requestAnimationFrame(function(){b.classList.add('on');});});
+  }
+  ladder.scrollTop=ladder.scrollHeight;
+}
+function replay(){
+  stopTimer();
+  ladder.innerHTML='';ctxbar.innerHTML='';badgesEl.innerHTML='';
+  childPanel=null;childRows=null;childCtx=null;
+  turnCount=0;chipCount=0;turnsN.textContent='0';ctxN.textContent='0';
+  chip('task','задача');
+  evIdx=0;
+  var evs=CFG[cur].events;
+  timer=setInterval(function(){
+    if(evIdx>=evs.length){stopTimer();return;}
+    runEvent(evs[evIdx++]);
+  },850);
+}
+function selectCfg(key){
+  cur=key;
+  for(var i=0;i<tabs.length;i++){tabs[i].classList.toggle('on',tabs[i].getAttribute('data-cfg')===key);}
+  verdictEl.innerHTML=CFG[key].verdict;
+  var pts=document.querySelectorAll('#l2pts .lgpt');
+  for(var j=0;j<pts.length;j++){pts[j].classList.toggle('act',pts[j].id===CFG[key].chart);}
+  replay();
+}
+for(var t=0;t<tabs.length;t++){
+  tabs[t].addEventListener('click',function(){selectCfg(this.getAttribute('data-cfg'));});
+}
+$('l2replay').addEventListener('click',replay);
+
+/* chart grid */
+(function(){
+  var g=$('l2grid-g'),x,y,i,h='';
+  for(i=0;i<=8;i++){
+    x=52+i*69.75;
+    h+='<line x1="'+x+'" y1="18" x2="'+x+'" y2="262" stroke="#e8ecf2" stroke-width="1"/>';
+    h+='<text x="'+x+'" y="278" text-anchor="middle" font-size="10" fill="#8b93a3" font-family="ui-monospace,Consolas,monospace">'+i+'</text>';
+  }
+  for(i=0;i<=11;i+=1){
+    y=262-i*22.18;
+    if(i%2===0){
+      h+='<line x1="52" y1="'+y+'" x2="610" y2="'+y+'" stroke="#e8ecf2" stroke-width="1"/>';
+      h+='<text x="44" y="'+(y+3.5)+'" text-anchor="end" font-size="10" fill="#8b93a3" font-family="ui-monospace,Consolas,monospace">'+i+'</text>';
+    }
+  }
+  h+='<line x1="52" y1="262" x2="610" y2="262" stroke="#c3ccda" stroke-width="1.4"/>';
+  h+='<line x1="52" y1="18" x2="52" y2="262" stroke="#c3ccda" stroke-width="1.4"/>';
+  g.innerHTML=h;
+})();
+
+selectCfg('base');
+})();
+</script>
+</body>
+</html>

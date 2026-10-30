@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>07. Code Mode в OpenCode V2: модель пишет программу, а не десятки вызовов</title>
+<style>
+:root{
+  --bg:#f2f4f8; --card:#ffffff; --ink:#20242c; --muted:#5b6472; --faint:#8b93a3;
+  --accent:#2f5fd7; --accent-soft:#e9eefb; --accent-ink:#24489e;
+  --org:#c96f10; --org-ink:#a35608; --org-bg:#fdf3e6; --org-br:#f0d5ab;
+  --ok:#177a3e; --ok-bg:#e5f4ea; --ok-br:#bfe3cc;
+  --sys:#8c2f44; --sys-bg:#faeef1; --sys-br:#eccdd5;
+  --no-bg:#fdeceb; --no-br:#f2c7c2; --no-ink:#c23a2b;
+  --border:#dde2ea; --border-soft:#e8ecf2;
+  --code-bg:#f5f7fa; --code-ink:#2a3140;
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono","Courier New",monospace;
+  --shadow:0 1px 2px rgba(30,37,52,.05),0 10px 26px -14px rgba(30,37,52,.14);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink)}
+a:hover{color:var(--accent)}
+.mono{font-family:var(--mono)}
+.page{max-width:1000px;margin:0 auto;padding:6px 34px 90px}
+section{scroll-margin-top:70px}
+
+/* ---- sticky TOC ---- */
+.toc{position:sticky;top:0;z-index:60;background:rgba(242,244,248,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--border-soft)}
+.toc-inner{max-width:1000px;margin:0 auto;padding:8px 34px;display:flex;flex-wrap:wrap;gap:4px}
+.toc a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.toc a:hover{color:var(--accent-ink);background:var(--accent-soft)}
+.toc a.interact{color:var(--accent-ink);font-weight:600}
+.toc a.interact::before{content:"◉ ";font-size:10px;vertical-align:1px}
+
+/* ---- doc head ---- */
+.doc-head{background:linear-gradient(180deg,#ffffff,#fbfcfe);border:1px solid var(--border-soft);border-radius:16px;padding:30px 34px;margin:22px 0;box-shadow:var(--shadow)}
+.doc-tags{font-family:var(--mono);font-size:13px;color:var(--accent-ink);margin-bottom:10px}
+.doc-tags span{background:var(--accent-soft);border-radius:6px;padding:2px 8px;margin-right:6px;display:inline-block}
+h1{font-size:29px;line-height:1.25;margin:0 0 14px;letter-spacing:-.01em}
+.lead{font-size:16.5px;color:#333a46;margin:0}
+
+/* ---- sections / cards ---- */
+section.card{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:26px 32px;margin:22px 0;box-shadow:var(--shadow)}
+h2{font-size:23px;line-height:1.3;margin:0 0 14px;color:var(--ink)}
+h2 .sec-n{color:var(--accent)}
+h3{font-size:18.5px;margin:26px 0 8px}
+h4{font-size:15.5px;margin:18px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:6px 0}
+.small{font-size:13.5px;color:var(--muted)}
+code{font-family:var(--mono);font-size:.9em;background:#eef1f7;border:1px solid var(--border-soft);border-radius:5px;padding:1px 5px;color:#33405e}
+pre.code{background:var(--code-bg);border:1px solid var(--border-soft);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:13.4px;line-height:1.62;color:var(--code-ink);margin:14px 0}
+pre.code code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+
+/* ---- tables ---- */
+table{width:100%;border-collapse:collapse;font-size:14.3px;margin:14px 0;background:#fff}
+th{background:#eef1f6;text-align:left;font-weight:600;color:#3a4353;padding:9px 12px;border:1px solid var(--border-soft)}
+td{border:1px solid var(--border-soft);padding:9px 12px;vertical-align:top}
+tbody tr:nth-child(even){background:#fafbfd}
+
+/* ---- glossary ---- */
+dl.gloss{margin:12px 0;display:grid;grid-template-columns:250px 1fr;gap:8px 18px}
+dl.gloss dt{font-weight:700;color:var(--accent-ink)}
+dl.gloss dd{margin:0;color:#333a46}
+dl.gloss dt,dl.gloss dd{padding:6px 0;border-bottom:1px dashed var(--border-soft)}
+
+/* ---- notes / badges ---- */
+.note{background:#f2f6ff;border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.8px;color:#2c3550}
+.note.warn{background:var(--org-bg);border-color:var(--org-br);border-left-color:var(--org);color:#5c430f}
+.note.live{background:var(--ok-bg);border-color:var(--ok-br);border-left-color:var(--ok);color:#144d28}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:4px 13px;border-radius:99px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.badge.warn{background:var(--org-bg);color:var(--org-ink);border:1px solid var(--org-br)}
+.badge.neutral{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.formula{font:800 14px var(--mono);text-align:center;color:var(--accent-ink);background:var(--accent-soft);border:1px solid #c6d4f2;border-radius:10px;padding:9px 12px;margin:14px 0}
+.formula small{display:block;font:600 11px var(--mono);color:var(--muted);margin-top:3px}
+
+/* ---- viz common ---- */
+.viz{border:1.5px solid #b9c9ec;border-radius:16px;background:linear-gradient(180deg,#fdfeff,#f8fafd);padding:24px 28px;margin:26px 0;box-shadow:var(--shadow);scroll-margin-top:70px}
+.viz-tag{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#2f5fd7,#5b83e8);border-radius:6px;padding:3px 10px;margin-bottom:10px}
+.viz h3{margin:0 0 6px;font-size:20px}
+.viz-hint{font-size:14px;color:var(--muted);margin:4px 0 16px}
+.viz-note{font-size:13.5px;color:var(--muted);margin:16px 0 0;padding-top:12px;border-top:1px dashed var(--border)}
+
+/* buttons */
+.btn{font:600 14px/1.2 inherit;color:var(--ink);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:9px 16px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#2750bd;color:#fff}
+.btn.danger-on{background:var(--no-ink);border-color:var(--no-ink);color:#fff}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+/* ---- static flow diagrams ---- */
+.flow{border:1px solid var(--border-soft);border-radius:13px;background:linear-gradient(#fbfcfe,#f5f7fb);padding:20px 24px;margin:16px 0;font-size:13.8px}
+.flow-cap{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:12px}
+.fnode{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:8px 14px;text-align:center;font-weight:600;color:#333a46;max-width:460px;margin:0 auto}
+.fnode.accent{background:var(--accent-soft);border-color:#c6d4f2;color:var(--accent-ink)}
+.fnode small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.varrow{display:flex;flex-direction:column;align-items:center;padding:2px 0;color:#aab3c2}
+.varrow .vline{width:2px;height:12px;background:#c3ccda}
+.varrow .vlab{font-size:11.5px;color:var(--muted);font-weight:600;margin:1px 0}
+.intro-flow{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.intro-flow .fcol{display:flex;flex-direction:column;align-items:center}
+.intro-flow .fnode{width:100%;max-width:330px}
+.if-note{font-size:12.3px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+
+/* ---- modes cards ---- */
+.modes-row{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.modes-row .mode-c{flex:1;min-width:220px;border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:14px 16px}
+.mode-c .mt{font:800 15px var(--mono);color:var(--accent-ink)}
+.mode-c .md{font-size:13.5px;color:#333a46;margin-top:6px}
+
+/* ================= VIZ 1: Лестница vs программа ================= */
+.ld-controls{margin:4px 0 14px}
+.ld-task{font-size:12.5px;color:var(--muted);background:#eef4ff;border:1px solid #d5e2f6;border-radius:99px;padding:5px 13px}
+.ld-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
+.ld-split>.ld-panel{min-width:0}
+.ld-panel{border:1.5px solid var(--border);border-radius:14px;background:#fff;padding:14px 16px;display:flex;flex-direction:column}
+.ld-panel.b{border-color:#c6d4f2;background:linear-gradient(#fdfeff,#f7faff)}
+.ld-ph{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.ld-ph b{font-size:15.5px}
+.ld-ph small{width:100%;color:var(--muted);font-size:12.3px;margin-top:-2px}
+.ld-counters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 10px}
+.ld-cnt{border:1px solid var(--border-soft);border-radius:10px;background:#fbfcfe;padding:6px 10px}
+.ld-cnt-n{display:block;font:800 21px/1.15 var(--mono);color:var(--accent-ink)}
+.ld-panel.a .ld-cnt-n.warned{color:var(--org-ink)}
+.ld-cnt span:last-child{font-size:10.8px;color:var(--muted);line-height:1.3;display:block}
+.ld-stage{position:relative;flex:1;min-height:288px;max-height:288px;overflow-y:auto;border:1px solid var(--border-soft);border-radius:12px;background:#fbfcfe;padding:11px 12px;display:flex;flex-direction:column;gap:6px}
+.ld-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.3px;color:var(--muted);margin-top:7px}
+.ld-legend i{font-style:normal;font-weight:700}
+.lm-row{display:flex;align-items:flex-start;gap:8px;opacity:0;transform:translateY(9px);transition:opacity .4s,transform .4s}
+.lm-row.on{opacity:1;transform:none}
+.lm-ico{font:800 11px/1.7 var(--mono);color:var(--accent-ink);min-width:14px;text-align:center}
+.lm-tool .lm-ico{color:#5b6472}
+.lm-ret .lm-ico{color:var(--ok)}
+.lm-bubble{border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:5px 10px;font-size:12.3px;line-height:1.45;flex:1}
+.lm-model .lm-bubble{border-color:#c6d4f2;background:var(--accent-soft)}
+.lm-model .lm-bubble b{color:var(--accent-ink)}
+.lm-bubble .lm-note{color:var(--muted)}
+.lm-toctx{display:block;font-size:10.8px;color:var(--org-ink);font-weight:700;margin-top:2px}
+.lm-okctx{display:block;font-size:10.8px;color:var(--ok);font-weight:700;margin-top:2px}
+.lm-gap{height:4px;border-left:2px dotted #c3ccda;margin-left:7px}
+.pg-code{border:1.5px solid #c6d4f2;border-radius:10px;background:#fff;padding:7px 10px;opacity:0;transform:translateY(9px);transition:opacity .4s,transform .4s}
+.pg-code.on{opacity:1;transform:none}
+.pg-code-t{font:800 10px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.07em}
+.pg-pre{margin:5px 0 1px;background:var(--code-bg);border:1px solid var(--border-soft);border-radius:8px;padding:8px 10px;font:600 11.2px/1.6 var(--mono);color:var(--code-ink);overflow:auto;white-space:pre;max-width:100%}
+.pg-rt{border:1.5px dashed #9db6ea;border-radius:12px;background:#f4f8ff;padding:8px 11px;opacity:0;transform:translateY(9px);transition:opacity .4s,transform .4s}
+.pg-rt.on{opacity:1;transform:none}
+.pg-rt-t{font:800 11.3px var(--mono);color:var(--accent-ink);margin-bottom:6px}
+.pg-fan{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.pg-cell{font:700 10.8px var(--mono);border:1.5px solid var(--border);background:#fff;border-radius:8px;padding:4px 8px;color:#33405e;opacity:.18;transform:translateY(7px);transition:opacity .32s,transform .32s}
+.pg-rt.on .pg-cell{opacity:1;transform:none}
+.pg-rt.on .pg-cell:nth-child(1){transition-delay:.04s}
+.pg-rt.on .pg-cell:nth-child(2){transition-delay:.11s}
+.pg-rt.on .pg-cell:nth-child(3){transition-delay:.18s}
+.pg-rt.on .pg-cell:nth-child(4){transition-delay:.25s}
+.pg-rt.on .pg-cell:nth-child(5){transition-delay:.32s}
+.pg-inner{border:1px solid var(--org-br);border-radius:10px;background:var(--org-bg);padding:7px 10px;margin-top:8px;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
+.pg-inner.on{opacity:1;transform:none}
+.pg-inner-t{font:800 10.8px var(--mono);color:var(--org-ink)}
+.pg-inner-chips{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0}
+.pg-inner-chips span{font:700 10px var(--mono);background:#fff;border:1px solid var(--org-br);border-radius:6px;padding:2px 7px;color:var(--org-ink)}
+.pg-inner-note{font-size:10.8px;color:var(--org-ink);font-weight:600;line-height:1.4}
+.ld-ctx{border:1.5px dashed var(--border);border-radius:12px;padding:7px 11px;margin-top:9px;background:#fff}
+.ld-ctx-t{font:800 10px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+.ld-ctx-chips{display:flex;flex-wrap:wrap;gap:5px;min-height:24px;align-content:flex-start}
+.ld-empty{font-size:11px;color:var(--faint);font-style:italic;align-self:center}
+.ld-chip{display:none;font:600 10.6px var(--mono);border:1px solid var(--org-br);background:var(--org-bg);color:var(--org-ink);border-radius:7px;padding:2px 7px}
+.ld-chip.on{display:inline-block;animation:ldpop .32s}
+.ld-chip.final{border-color:var(--ok-br);background:var(--ok-bg);color:var(--ok);font-weight:800}
+@keyframes ldpop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+.ld-verdict{border:1px solid #cfdcf5;border-left:4px solid var(--accent);border-radius:10px;background:#f2f6ff;padding:10px 15px;margin-top:14px;font-size:14px;color:#2c3550;min-height:44px}
+.ld-verdict b{color:var(--accent-ink)}
+
+/* ================= VIZ 2: Песочница Code Mode ================= */
+.sb-wrap{display:grid;grid-template-columns:1fr 302px;gap:16px;align-items:start}
+.sb-cm{position:relative;border:2px solid #b9c9ec;border-radius:14px;background:linear-gradient(180deg,#fdfeff,#f6f9ff);padding:14px 16px;transition:opacity .5s,filter .5s}
+.sb-cm-head{font:800 13px var(--mono);color:var(--accent-ink);margin-bottom:11px;padding-bottom:8px;border-bottom:1px dashed #c6d4f2}
+.sb-cm-head .mono{font-weight:800}
+.sb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.sb-tile{position:relative;border:1.5px solid var(--border);border-radius:11px;background:#fff;padding:9px 10px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;min-height:92px}
+.sb-tile:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,95,215,.13)}
+.sb-tile.active{border-color:var(--accent);background:#f2f7ff;box-shadow:0 0 0 3px rgba(47,95,215,.16)}
+.sb-t-name{font:800 12px var(--mono);color:#2a3140}
+.sb-t-st{display:inline-block;font:800 10px var(--mono);border-radius:6px;padding:2px 8px;margin:5px 0 3px;letter-spacing:.02em}
+.sb-t-st.no{background:var(--no-bg);color:var(--no-ink);border:1px solid var(--no-br)}
+.sb-t-st.only{background:var(--accent-soft);color:var(--accent-ink);border:1px solid #c6d4f2}
+.sb-t-st.via{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.sb-t-st.watch{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.sb-t-sub{display:block;font-size:10.6px;color:var(--muted);line-height:1.38}
+.sb-t-mcpnote{display:none;font-size:9.6px;font-weight:800;color:var(--ok);margin-top:4px}
+.sb-cm.denied{opacity:.38;filter:grayscale(.85)}
+.sb-cm.denied .sb-cm-head{text-decoration:line-through}
+.sb-cm.denied .sb-tile{cursor:not-allowed}
+.sb-cm.denied .sb-tile:hover{border-color:var(--border);box-shadow:none}
+.sb-cm.denied .sb-tile.active{border-color:var(--border);background:#fff;box-shadow:none}
+.sb-cm.denied .sb-tile[data-id="mcp"] .sb-t-mcpnote{display:block}
+.sb-stamp{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:5;border-radius:12px}
+.sb-cm.denied .sb-stamp{display:flex}
+.sb-stamp-in{transform:rotate(-4deg);border:2.5px dashed var(--no-ink);background:rgba(255,255,255,.94);color:var(--no-ink);font:800 15px var(--mono);border-radius:12px;padding:12px 22px;text-align:center;box-shadow:var(--shadow)}
+.sb-stamp-in small{display:block;font:700 11px var(--mono);margin-top:5px;letter-spacing:0}
+.sb-outside{border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:10px 14px;margin-top:11px;transition:border-color .4s,background .4s}
+.sb-outside.hi{border-color:var(--ok);background:var(--ok-bg)}
+.sb-out-t{font:800 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.sb-outside.hi .sb-out-t{color:var(--ok)}
+.sb-out-d{font-size:12.3px;color:#333a46;margin-top:3px;line-height:1.5}
+.sb-legend{font-size:11.5px;color:var(--faint);margin-top:9px}
+.sb-legend i{font-style:normal;font-weight:800;font-family:var(--mono);font-size:10px;border-radius:5px;padding:1px 7px;margin:0 2px}
+.sb-legend .lg-no{background:var(--no-bg);color:var(--no-ink);border:1px solid var(--no-br)}
+.sb-legend .lg-only{background:var(--accent-soft);color:var(--accent-ink);border:1px solid #c6d4f2}
+.sb-legend .lg-via{background:#eef1f6;color:#4a5262;border:1px solid var(--border)}
+.sb-legend .lg-watch{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-br)}
+.sb-side{display:flex;flex-direction:column;gap:12px}
+.sb-detail{border:1.5px solid #c6d4f2;border-radius:13px;background:#fff;padding:13px 15px;min-height:150px}
+.sb-d-t{font:800 14px var(--mono);color:var(--accent-ink);margin-bottom:6px}
+.sb-d-d{font-size:13px;color:#333a46;line-height:1.55}
+.sb-d-d code{font-size:.88em}
+.sb-js{border:1.5px solid var(--border);border-radius:13px;background:#fff;padding:12px 14px}
+.sb-js-t{font:800 12.5px var(--mono);color:var(--ink);margin-bottom:8px;padding-bottom:6px;border-bottom:1px dashed var(--border)}
+.sb-js-row{padding:6px 0;border-bottom:1px dashed var(--border-soft)}
+.sb-js-row:last-child{border-bottom:none}
+.sb-js-a{font:800 11px var(--mono);color:var(--sys);text-transform:uppercase;letter-spacing:.04em}
+.sb-js-d{font-size:12px;color:#333a46;line-height:1.5;margin-top:2px}
+.sb-js-d .vs{color:var(--faint);font-weight:700}
+.sb-toggle-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:15px;padding-top:13px;border-top:1px dashed var(--border)}
+.sb-cap{font-size:13px;color:var(--muted)}
+.sb-cap b{color:var(--accent-ink)}
+
+/* ---- hooks duel ---- */
+.hooks-duel{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.hook-c{border:1.5px solid var(--border);border-radius:12px;background:#fff;padding:13px 16px}
+.hook-c.rt{border-color:#c6d4f2;background:linear-gradient(#fdfeff,#f5f8ff)}
+.hook-c .hc-t{font:800 14px var(--mono);color:var(--accent-ink)}
+.hook-c.plugin .hc-t{color:var(--sys)}
+.hook-c .hc-tag{display:inline-block;font:800 9.5px var(--mono);text-transform:uppercase;letter-spacing:.06em;border-radius:5px;padding:1px 7px;margin-bottom:6px}
+.hook-c.rt .hc-tag{background:var(--accent-soft);color:var(--accent-ink)}
+.hook-c.plugin .hc-tag{background:var(--sys-bg);color:var(--sys)}
+.hook-c .hc-d{font-size:13.3px;color:#333a46;margin-top:5px;line-height:1.55}
+
+/* ---- links ---- */
+.links ul{list-style:none;padding:0}
+.links li{padding:7px 0;border-bottom:1px dashed var(--border-soft);font-size:14.5px}
+.links li:last-child{border-bottom:none}
+.links .lnk-desc{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.ext::after{content:" ↗";font-size:12px;color:var(--faint)}
+footer{margin-top:34px;text-align:center;color:var(--faint);font-size:12.5px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#glossary">Глоссарий</a>
+    <a href="#viz-ladder" class="interact">Лестница vs программа</a>
+    <a href="#sandbox">Песочница</a>
+    <a href="#notjs">Не произвольный JS</a>
+    <a href="#limits">Лимиты и аудит</a>
+    <a href="#namespaces">Неймспейсы</a>
+    <a href="#viz-sbox" class="interact">Карта песочницы</a>
+    <a href="#snapshot">Снапшот и хуки</a>
+    <a href="#delegation">Делегирование</a>
+    <a href="#case">Живой пример</a>
+    <a href="#summary">Резюме</a>
+    <a href="#links">Ссылки</a>
+  </div>
+</nav>
+
+<main class="page">
+
+<header class="doc-head">
+  <div class="doc-tags"><span>#AI_gen</span><span>#opencode</span><span>#ai-agents</span></div>
+  <h1>07. Code Mode в OpenCode V2: модель пишет программу, а не десятки вызовов</h1>
+  <p class="lead">Обычный агентный цикл — лестница: вызвал инструмент → результат приехал в контекст → снова модель → следующий вызов. Пока задача не решена, каждый пролёт лестницы оставляет в контексте промежуточные значения, которые модели нужны были на секунду. V2 отвечает на это разворотом парадигмы: <b>модель пишет маленькую программу, а сервер её исполняет</b> — комбинация вызовов инструментов и обработка результатов происходят вне контекста модели, обратно возвращается только итог. Источники — раздел <a href="https://opencode.ai/v2/docs/tools" target="_blank" rel="noopener" class="ext">V2 tools docs, «Execute»</a> и <a href="https://github.com/anomalyco/opencode/blob/dev/packages/codemode/README.md" target="_blank" rel="noopener" class="ext">README пакета codemode</a>.</p>
+
+  <div class="flow intro-flow">
+    <div class="fcol">
+      <div class="flow-cap">без Code Mode: лестница вызовов — каждый пролёт через модель</div>
+      <div class="fnode">модель</div>
+      <div class="varrow"><span class="vlab">вызов инструмента</span><span class="vline"></span></div>
+      <div class="fnode">инструмент</div>
+      <div class="varrow"><span class="vlab">результат В КОНТЕКСТ</span><span class="vline"></span></div>
+      <div class="fnode">модель → следующий вызов …</div>
+      <p class="if-note">N вызовов = N модельных запросов; промежуточные значения оседают в контексте и там же устаревают</p>
+    </div>
+    <div class="fcol">
+      <div class="flow-cap">с Code Mode: одна программа вместо лестницы</div>
+      <div class="fnode accent">модель</div>
+      <div class="varrow"><span class="vlab">execute: маленькая программа</span><span class="vline"></span></div>
+      <div class="fnode accent">комбинации вызовов каталога инструментов<small>параллельные независимые + обработка результатов</small></div>
+      <div class="varrow"><span class="vlab">только итог</span><span class="vline"></span></div>
+      <div class="fnode">модель</div>
+      <p class="if-note">промежуточные значения остались внутри программы, в контекст не попали</p>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ ГЛОССАРИЙ ============================ -->
+<section class="card" id="glossary">
+  <h2><span class="sec-n">·</span> Мини-глоссарий</h2>
+  <dl class="gloss">
+    <dt>Code Mode</dt><dd>режим, в котором агент исполняет JavaScript-подобную программу через инструмент <code>execute</code>, чтобы вызывать и комбинировать инструменты каталога.</dd>
+    <dt>каталог инструментов</dt><dd>вся совокупность инструментов, доступных программе через неймспейсы.</dd>
+    <dt>снапшот каталога</dt><dd>стабильная фиксация каталога инструментов на каждый модельный запрос (<a href="https://opencode.ai/v2/docs/build/plugins/server" target="_blank" rel="noopener" class="ext">server plugin docs</a>).</dd>
+    <dt>песочница по построению</dt><dd>изоляция не надстройкой поверх языка, а отсутствием опасных возможностей в нём.</dd>
+    <dt>REPL-семантика</dt><dd>без явного <code>return</code> результатом становится значение последнего выражения верхнего уровня; <code>undefined</code> превращается в <code>null</code>.</dd>
+    <dt>неймспейс</dt><dd>именованная группа инструментов внутри Code Mode: <code>opencode</code>, <code>browser</code>, имя MCP-сервера.</dd>
+  </dl>
+</section>
+
+<!-- ============================ VIZ 1: ЛЕСТНИЦА VS ПРОГРАММА ============================ -->
+<div class="viz" id="viz-ladder">
+  <div class="viz-tag">Интерактив 1 · лестница vs программа</div>
+  <h3>Одна задача — два режима работы агента</h3>
+  <p class="viz-hint">Задача: «проверь 5 файлов и сведи результат». Слева — обычный агентный цикл: лестница последовательных вызовов, каждый пролёт через модель. Справа — Code Mode: инструмент <span class="mono">execute</span> исполняет одну программу. Нажмите «Play» или идите по шагам — оба режима стартуют одновременно.</p>
+
+  <div class="btn-row ld-controls">
+    <button class="btn btn-primary" id="ldPlay">▶ Play</button>
+    <button class="btn" id="ldStep">Шаг ⏭</button>
+    <button class="btn" id="ldReset">↺ Сброс</button>
+    <span class="ld-task mono">задача: проверить 5 файлов и свести результат</span>
+  </div>
+
+  <div class="ld-split">
+    <!-- Режим А: лестница -->
+    <div class="ld-panel a">
+      <div class="ld-ph"><span class="badge neutral">Режим А</span> <b>Лестница вызовов</b><small>последовательные вызовы инструментов — шаги идут по очереди</small></div>
+      <div class="ld-counters">
+        <div class="ld-cnt"><span class="ld-cnt-n" id="ldTurnsA">0</span><span>витков (модельных запросов)</span></div>
+        <div class="ld-cnt"><span class="ld-cnt-n" id="ldSettledA">0</span><span>промежуточных значений осело в контексте</span></div>
+      </div>
+      <div class="ld-stage" id="ldStageA">
+        <div class="lm-row lm-model" data-req="1"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 1</b> <span class="lm-note">→ вызов read(a.md)</span></div></div>
+        <div class="lm-row lm-tool" data-req="2"><span class="lm-ico">▣</span><div class="lm-bubble"><b>инструмент read(a.md)</b> → «a.md: 340 строк · 12 ссылок · битых 0»<em class="lm-toctx">результат приехал в контекст — осело промежуточное №1</em></div></div>
+        <div class="lm-row lm-model" data-req="3"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 2</b> <span class="lm-note">→ вызов read(b.md) · контекст уже несёт промежуточное №1</span></div></div>
+        <div class="lm-row lm-tool" data-req="4"><span class="lm-ico">▣</span><div class="lm-bubble"><b>инструмент read(b.md)</b> → «b.md: 298 строк · 9 ссылок · битых 1»<em class="lm-toctx">осело промежуточное №2</em></div></div>
+        <div class="lm-row lm-model" data-req="5"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 3</b> <span class="lm-note">→ вызов read(c.md) · в контексте уже №1–№2</span></div></div>
+        <div class="lm-row lm-tool" data-req="6"><span class="lm-ico">▣</span><div class="lm-bubble"><b>инструмент read(c.md)</b> → «c.md: 411 строк · 15 ссылок · битых 0»<em class="lm-toctx">осело промежуточное №3</em></div></div>
+        <div class="lm-row lm-model" data-req="7"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 4</b> <span class="lm-note">→ вызов read(d.md) · в контексте уже №1–№3</span></div></div>
+        <div class="lm-row lm-tool" data-req="8"><span class="lm-ico">▣</span><div class="lm-bubble"><b>инструмент read(d.md)</b> → «d.md: 265 строк · 7 ссылок · битых 2»<em class="lm-toctx">осело промежуточное №4</em></div></div>
+        <div class="lm-row lm-model" data-req="9"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 5</b> <span class="lm-note">→ вызов read(e.md) · в контексте уже №1–№4</span></div></div>
+        <div class="lm-row lm-tool" data-req="10"><span class="lm-ico">▣</span><div class="lm-bubble"><b>инструмент read(e.md)</b> → «e.md: 352 строк · 11 ссылок · битых 0»<em class="lm-toctx">осело промежуточное №5</em></div></div>
+        <div class="lm-row lm-model" data-req="11"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 6</b> <span class="lm-note">— сводит 5 промежуточных значений → итог</span><em class="lm-okctx">итог добавился в контекст — к пяти промежуточным</em></div></div>
+      </div>
+      <div class="ld-legend"><span><i>◆</i> модель</span><span><i>▣</i> инструмент</span><span>N вызовов = N модельных запросов</span></div>
+      <div class="ld-ctx">
+        <div class="ld-ctx-t">контекст модели</div>
+        <div class="ld-ctx-chips" id="ldChipsA">
+          <span class="ld-empty" id="ldEmptyA">пусто — пока ничего не осело</span>
+          <span class="ld-chip" data-req="2">№1 a.md · 12 ссылок</span>
+          <span class="ld-chip" data-req="4">№2 b.md · 9 ссылок</span>
+          <span class="ld-chip" data-req="6">№3 c.md · 15 ссылок</span>
+          <span class="ld-chip" data-req="8">№4 d.md · 7 ссылок</span>
+          <span class="ld-chip" data-req="10">№5 e.md · 11 ссылок</span>
+          <span class="ld-chip final" data-req="11">итог: 54 ссылки · битых 3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Режим Б: одна программа -->
+    <div class="ld-panel b">
+      <div class="ld-ph"><span class="badge ok">Режим Б</span> <b>Одна программа — <span class="mono">execute</span></b><small>Code Mode: комбинация вызовов и обработка — вне контекста модели</small></div>
+      <div class="ld-counters">
+        <div class="ld-cnt"><span class="ld-cnt-n" id="ldTurnsB">0</span><span>витков (модельных запросов)</span></div>
+        <div class="ld-cnt"><span class="ld-cnt-n" id="ldSettledB">0</span><span>промежуточных значений осело в контексте</span></div>
+      </div>
+      <div class="ld-stage" id="ldStageB">
+        <div class="lm-row lm-model" data-req="1"><span class="lm-ico">◆</span><div class="lm-bubble"><b>модель · виток 1 — единственный запрос</b> <span class="lm-note">пишет одну маленькую программу</span></div></div>
+        <div class="pg-code" data-req="1">
+          <div class="pg-code-t">execute · программа (иллюстрация идеи)</div>
+          <pre class="pg-pre">const files = ["a.md","b.md","c.md","d.md","e.md"]
+const rs = await Promise.all(files.map(read))  // параллельно
+return rs.reduce((s,r) =&gt; s + r.broken, 0)     // обработка внутри</pre>
+        </div>
+        <div class="pg-rt" data-req="2">
+          <div class="pg-rt-t">Code Mode исполняет: параллельные независимые вызовы — веером, не по очереди</div>
+          <div class="pg-fan">
+            <span class="pg-cell">read(a.md)</span>
+            <span class="pg-cell">read(b.md)</span>
+            <span class="pg-cell">read(c.md)</span>
+            <span class="pg-cell">read(d.md)</span>
+            <span class="pg-cell">read(e.md)</span>
+          </div>
+          <div class="pg-inner" data-req="3">
+            <div class="pg-inner-t">результаты обрабатываются внутри программы</div>
+            <div class="pg-inner-chips"><span>a.md</span><span>b.md</span><span>c.md</span><span>d.md</span><span>e.md</span></div>
+            <div class="pg-inner-note">5 промежуточных значений остались внутри программы — в контекст не попали</div>
+          </div>
+        </div>
+        <div class="lm-row lm-ret" data-req="4"><span class="lm-ico">↩</span><div class="lm-bubble"><b>return — программа вернула только итог</b><em class="lm-okctx">в контексте модели — одно значение, а не пять</em></div></div>
+      </div>
+      <div class="ld-legend"><span><i>◆</i> модель</span><span>веер = параллельные вызовы</span><span>1 виток на всю задачу</span></div>
+      <div class="ld-ctx">
+        <div class="ld-ctx-t">контекст модели</div>
+        <div class="ld-ctx-chips" id="ldChipsB">
+          <span class="ld-empty" id="ldEmptyB">пусто — пока ничего не осело</span>
+          <span class="ld-chip final" data-req="4">итог: 54 ссылки · битых 3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ld-verdict" id="ldVerdict">Готовы? Нажмите <b>Play</b> — оба режима начнут одновременно, и разница станет видна сама.</div>
+
+  <p class="viz-note">Фактология: без Code Mode каждый пролёт лестницы — отдельный модельный запрос, и промежуточные значения оседают в контексте, где устаревают. С Code Mode модель пишет одну программу, сервер её исполняет: параллельные независимые вызовы каталога инструментов + обработка результатов происходят вне контекста модели — <b>промежуточные значения не попадают в контекст модели</b>, обратно возвращается только итог. Числа файлов в демо — иллюстративные.</p>
+</div>
+
+<!-- ============================ ПЕСОЧНИЦА ============================ -->
+<section class="card" id="sandbox">
+  <h2><span class="sec-n">·</span> Песочница по построению</h2>
+  <p>Ключевое слово — «по построению»: программа не изолируется после запуска, она просто не имеет опасного. Рантайм Code Mode — без прямого доступа к файловой системе, без <code>imports</code> и без таймеров; из внешнего мира есть только <code>fetch</code>; всё остальное — через каталог инструментов.</p>
+  <div class="formula">песочница по построению = изоляция не надстройкой поверх языка, а отсутствием опасных возможностей в нём<small>ножницы безопасности срабатывают одним правилом</small></div>
+  <p>Ножницы безопасности срабатывают одним правилом: запрет <code>execute</code> с resource <code>*</code> удаляет Code Mode <b>и все инструменты, достижимые только через него</b> (механика permissions — из <a href="04_opencode-multiagent.md">заметки 04</a>). Что при этом исчезает — смотрите на карте ниже.</p>
+</section>
+
+<!-- ============================ НЕ ПРОИЗВОЛЬНЫЙ JS ============================ -->
+<section class="card" id="notjs">
+  <h2><span class="sec-n">·</span> Не произвольный JS: интерпретатор подмножества</h2>
+  <p>Code Mode — не «запусти любой JavaScript», а «исполни только то, что реализовано». README описывает рантайм как <i>lightweight, pure interpreter for a JavaScript-like language</i> — программы не могут напрямую трогать сеть, файловую систему, процессы и API приложения. Отличия от обычного JS — в таблице:</p>
+  <table>
+    <thead><tr><th>Обычный JS</th><th>Code Mode</th></tr></thead>
+    <tbody>
+      <tr><td>вся экосистема: imports, npm-пакеты</td><td>только поддерживаемые API; imports нет</td></tr>
+      <tr><td>незавершённые async-операции живут, пока жив рантайм</td><td>недождавшиеся async-операции прерываются при завершении программы</td></tr>
+      <tr><td>результат — куда положишь (side effects, console)</td><td>REPL-семантика: без явного <code>return</code> — значение последнего выражения верхнего уровня; <code>undefined</code> → <code>null</code></td></tr>
+      <tr><td>любой синтаксис валиден для парсера</td><td>неподдерживаемый синтаксис → диагностика <code>UnsupportedSyntax</code></td></tr>
+    </tbody>
+  </table>
+  <p class="small">Идея не придумана OpenCode: подход code mode предложила Cloudflare как изолят-подход к агентам (<a href="https://blog.cloudflare.com/code-mode/" target="_blank" rel="noopener" class="ext">Cloudflare code mode post</a>); OpenCode реализовала собственный интерпретатор.</p>
+</section>
+
+<!-- ============================ ЛИМИТЫ И АУДИТ ============================ -->
+<section class="card" id="limits">
+  <h2><span class="sec-n">·</span> Лимиты и аудит</h2>
+  <p>Программа — ресурс ограниченный и просматриваемый:</p>
+  <ul>
+    <li><code>timeoutMs</code> — время;</li>
+    <li><code>maxToolCalls</code> — число вызовов инструментов;</li>
+    <li><code>maxOutputBytes</code> — размер вывода.</li>
+  </ul>
+  <p>Аудит встроен: <code>toolCalls</code> хранит полный лог допущенных вызовов, а <code>search(...)</code> ищет по каталогу инструментов прямо из программы.</p>
+</section>
+
+<!-- ============================ НЕЙМСПЕЙСЫ ============================ -->
+<section class="card" id="namespaces">
+  <h2><span class="sec-n">·</span> Неймспейсы внутри Code Mode</h2>
+  <p>Внутри программы инструменты сгруппированы по неймспейсам:</p>
+  <div class="modes-row">
+    <div class="mode-c"><div class="mt">opencode</div><div class="md">служебные инструменты самого OpenCode: <span class="mono">session_rename</span>, <span class="mono">session_move</span>, <span class="mono">worktree_*</span> — именно отсюда инструменты <a href="06_opencode-worktree.md">заметки 06</a></div></div>
+    <div class="mode-c"><div class="mt">browser</div><div class="md">управление браузером desktop-приложения</div></div>
+    <div class="mode-c"><div class="mt">MCP-серверы</div><div class="md">их инструменты по умолчанию доступны агенту через <span class="mono">execute</span> под неймспейсом своего сервера; настройка <span class="mono">codemode: false</span> выводит их наружу прямыми инструментами (<a href="https://opencode.ai/v2/docs/mcp-servers" target="_blank" rel="noopener" class="ext">MCP servers docs</a>)</div></div>
+  </div>
+</section>
+
+<!-- ============================ VIZ 2: ПЕСОЧНИЦА CODE MODE ============================ -->
+<div class="viz" id="viz-sbox">
+  <div class="viz-tag">Интерактив 2 · песочница Code Mode</div>
+  <h3>Карта возможностей рантайма</h3>
+  <p class="viz-hint">Клик по плитке — карточка-пояснение справа: что это значит и почему «песочница по построению». Тумблер внизу включает запрет <span class="mono">execute</span> с resource <span class="mono">*</span> — смотрите, что исчезнет с карты.</p>
+
+  <div class="sb-wrap">
+    <div class="sb-left">
+      <div class="sb-cm" id="sbCm">
+        <div class="sb-cm-head">execute · Code Mode · JavaScript-подобная программа исполняется на сервере</div>
+        <div class="sb-grid" id="sbGrid">
+          <div class="sb-tile" data-id="fs"><div class="sb-t-name">Файловая система</div><span class="sb-t-st no">НЕТ</span><span class="sb-t-sub">прямого доступа из языка</span></div>
+          <div class="sb-tile" data-id="imports"><div class="sb-t-name">imports</div><span class="sb-t-st no">НЕТ</span><span class="sb-t-sub">и npm-пакетов — только поддерживаемые API</span></div>
+          <div class="sb-tile" data-id="timers"><div class="sb-t-name">таймеры</div><span class="sb-t-st no">НЕТ</span><span class="sb-t-sub">рантайм без таймеров</span></div>
+          <div class="sb-tile" data-id="net"><div class="sb-t-name">сеть</div><span class="sb-t-st only">только fetch</span><span class="sb-t-sub">из внешнего мира — только <span class="mono">fetch</span></span></div>
+          <div class="sb-tile" data-id="tools"><div class="sb-t-name">инструменты</div><span class="sb-t-st via">через каталог</span><span class="sb-t-sub">неймспейсы: <span class="mono">opencode</span> · <span class="mono">browser</span></span></div>
+          <div class="sb-tile" data-id="mcp"><div class="sb-t-name">MCP-серверы</div><span class="sb-t-st via">через execute</span><span class="sb-t-sub">по умолчанию, под неймспейсом сервера</span><span class="sb-t-mcpnote">codemode: false вернёт прямыми</span></div>
+          <div class="sb-tile" data-id="limits"><div class="sb-t-name">лимиты</div><span class="sb-t-st watch">3 планки</span><span class="sb-t-sub"><span class="mono">timeoutMs · maxToolCalls · maxOutputBytes</span></span></div>
+          <div class="sb-tile" data-id="audit"><div class="sb-t-name">аудит</div><span class="sb-t-st watch">встроен</span><span class="sb-t-sub">лог <span class="mono">toolCalls</span> + <span class="mono">search(...)</span></span></div>
+        </div>
+        <div class="sb-stamp"><div class="sb-stamp-in">execute: deny resource *<small>Code Mode удалён — вместе со всем,<br>достижимым только через него</small></div></div>
+      </div>
+      <div class="sb-outside" id="sbOutside">
+        <div class="sb-out-t">вне Code Mode</div>
+        <div class="sb-out-d">всё, что не требовало <span class="mono">execute</span>, запрет не трогает; MCP-инструменты можно вернуть прямыми настройкой <span class="mono">codemode: false</span></div>
+      </div>
+      <div class="sb-legend">плитки кликабельны · <i class="lg-no">НЕТ</i><i class="lg-only">ограничено</i><i class="lg-via">через каталог</i><i class="lg-watch">надзор</i></div>
+    </div>
+
+    <aside class="sb-side">
+      <div class="sb-detail">
+        <div class="sb-d-t" id="sbDT">Кликните по плитке</div>
+        <div class="sb-d-d" id="sbDD">Здесь появится пояснение: что означает категория и почему рантайм — «песочница по построению». Категории карты покрывают весь рантайм Code Mode: от отсутствия ФС и imports до лимитов и аудита вызовов.</div>
+      </div>
+      <div class="sb-js">
+        <div class="sb-js-t">чем не обычный JS</div>
+        <div class="sb-js-row"><div class="sb-js-a">результат</div><div class="sb-js-d">JS: side effects, console <span class="vs">→</span> Code Mode: REPL — значение последнего выражения; <span class="mono">undefined</span> → <span class="mono">null</span></div></div>
+        <div class="sb-js-row"><div class="sb-js-a">синтаксис</div><div class="sb-js-d">JS: валиден любой <span class="vs">→</span> Code Mode: неподдерживаемый → <span class="mono">UnsupportedSyntax</span></div></div>
+        <div class="sb-js-row"><div class="sb-js-a">async</div><div class="sb-js-d">JS: недождавшиеся живут, пока жив рантайм <span class="vs">→</span> Code Mode: прерываются при завершении программы</div></div>
+        <div class="sb-js-row"><div class="sb-js-a">экосистема</div><div class="sb-js-d">JS: imports, npm-пакеты <span class="vs">→</span> Code Mode: только поддерживаемые API, imports нет</div></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="sb-toggle-row">
+    <button class="btn" id="sbDeny">🚫 Запретить execute с resource *</button>
+    <span class="sb-cap" id="sbCap">ножницы безопасности срабатывают <b>одним правилом</b> — попробуйте</span>
+  </div>
+
+  <p class="viz-note">Изоляция не надстройкой поверх языка, а отсутствием опасных возможностей в нём: программа не изолируется после запуска — ей нечего изолировать. Полный разбор отличий интерпретатора — в разделе «Не произвольный JS» выше.</p>
+</div>
+
+<!-- ============================ СНАПШОТ И RUNTIME-ХУКИ ============================ -->
+<section class="card" id="snapshot">
+  <h2><span class="sec-n">·</span> Снапшот каталога и runtime-хуки</h2>
+  <p>Две гарантии предсказуемости. Первый: каждый модельный запрос фиксирует <b>стабильный снапшот каталога инструментов</b> — программа видит одну и ту же картину на протяжении запроса. Второй: каждый вызов программы в хост окружают runtime-хуки Code Mode.</p>
+
+  <div class="hooks-duel">
+    <div class="hook-c rt">
+      <span class="hc-tag">runtime-хуки Code Mode</span>
+      <div class="hc-t">tool.before / tool.after</div>
+      <div class="hc-d">Опция <code>hooks</code> в <code>CodeMode.make</code>. Окружают <b>каждый вызов программы</b> в хост: перехват живёт на стороне рантайма Code Mode.</div>
+    </div>
+    <div class="hook-c plugin">
+      <span class="hc-tag">plugin API — не путать!</span>
+      <div class="hc-t">ctx.tool: execute.before / execute.after</div>
+      <div class="hc-d">Родственный per-call перехват в plugin API живёт на домене <code>ctx.tool</code> с именами <code>execute.before</code> / <code>execute.after</code> — именно он разобран в <a href="05_opencode-commands-hooks.md">заметке 05</a>.</div>
+    </div>
+  </div>
+  <div class="note warn"><b>Разведение:</b> runtime-хуки Code Mode (<code>tool.before</code>/<code>tool.after</code>, опция <code>hooks</code> в <code>CodeMode.make</code>) и plugin-хуки домена <code>ctx.tool</code> (<code>execute.before</code>/<code>execute.after</code>) — <b>разные API</b>; общая у них идея — аудит каждого вызова.</div>
+</section>
+
+<!-- ============================ ДВЕ ФОРМЫ ДЕЛЕГИРОВАНИЯ ============================ -->
+<section class="card" id="delegation">
+  <h2><span class="sec-n">·</span> Две формы делегирования: программа и субагент</h2>
+  <p>Code Mode и субагенты отвечают на разные вопросы, и это две ортогональные оси:</p>
+  <table>
+    <thead><tr><th></th><th>Code Mode (<code>execute</code>)</th><th>субагенты (<a href="04_opencode-multiagent.md">заметка 04</a>)</th></tr></thead>
+    <tbody>
+      <tr><td><b>Суть</b></td><td>композиция инструментов внутри одной программы</td><td>отдельные сессии со своими ролями и правами</td></tr>
+      <tr><td><b>Контекст</b></td><td>промежуточные значения не попадают к модели</td><td>у субагента свой контекст: получил бриф — вернул отчёт</td></tr>
+      <tr><td><b>Сильная сторона</b></td><td>параллельные независимые вызовы, механическая обработка результатов</td><td>содержательная специализация: исследование, написание, ревью</td></tr>
+    </tbody>
+  </table>
+  <p>Правило большого пальца: работу <b>механическую</b> — «сходи туда, туда и туда, посчитай» — отдавайте программе; работу <b>смысловую</b> — требующую своей модели и своего промпта — субагенту.</p>
+</section>
+
+<!-- ============================ ЖИВОЙ ПРИМЕР ============================ -->
+<section class="card" id="case">
+  <h2><span class="sec-n">·</span> Живой пример: этот доклад готовится самим V2</h2>
+  <div class="note live">Врезка без выдумки: материалы этого цикла создаются мультиагентским конвейером на OpenCode V2 — оркестратор Newton раздаёт брифы субагентам (<a href="04_opencode-multiagent.md">заметка 04</a>), а вызовы инструментов оркестратора идут через Code Mode. Доклад про V2 готовится самим V2.</div>
+</section>
+
+<!-- ============================ РЕЗЮМЕ ============================ -->
+<section class="card" id="summary">
+  <h2><span class="sec-n">·</span> Code Mode одним взглядом</h2>
+  <table>
+    <thead><tr><th>Вопрос</th><th>Ответ</th></tr></thead>
+    <tbody>
+      <tr><td>Что это</td><td>инструмент <code>execute</code>: модель пишет JavaScript-подобную программу вместо десятков вызовов</td></tr>
+      <tr><td>Зачем</td><td>параллельные независимые вызовы; промежуточные значения не попадают в контекст</td></tr>
+      <tr><td>Песочница</td><td>по построению: без FS, imports, таймеров; извне — только <code>fetch</code>; всё через каталог</td></tr>
+      <tr><td>Выключение</td><td>запрет <code>execute</code> с resource <code>*</code> удаляет Code Mode и всё, достижимое только через него</td></tr>
+      <tr><td>Язык</td><td>интерпретатор подмножества JS: только поддерживаемые API; <code>UnsupportedSyntax</code> на остальное</td></tr>
+      <tr><td>Отличия от JS</td><td>async прерывается при завершении; REPL-результат (<code>undefined</code>→<code>null</code>)</td></tr>
+      <tr><td>Лимиты и аудит</td><td><code>timeoutMs</code>, <code>maxToolCalls</code>, <code>maxOutputBytes</code>; лог <code>toolCalls</code>; <code>search(...)</code></td></tr>
+      <tr><td>Неймспейсы</td><td><code>opencode</code> (<code>session_move</code>, <code>worktree_*</code>), <code>browser</code>, MCP-серверы (<code>codemode: false</code> — наружу)</td></tr>
+      <tr><td>Стабильность</td><td>снапшот каталога на каждый запрос; runtime-хуки <code>tool.before</code>/<code>tool.after</code> вокруг каждого вызова программы</td></tr>
+      <tr><td>Родословная</td><td>code mode — Cloudflare (изолят-подход); интерпретатор — собственный OpenCode</td></tr>
+      <tr><td>vs субагенты</td><td>механическая композиция инструментов ↔ смысловая специализация в отдельных сессиях</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================ ССЫЛКИ ============================ -->
+<section class="card links" id="links">
+  <h2><span class="sec-n">·</span> Ссылки</h2>
+  <h3>Внутренние</h3>
+  <ul>
+    <li><a href="04_opencode-multiagent.md">04. Мультиагенты в OpenCode V2</a><span class="lnk-desc">вторая форма делегирования: субагенты со своими правами и контекстом; permissions-механика запрета <span class="mono">execute</span>.</span></li>
+    <li><a href="05_opencode-commands-hooks.md">05. Команды и хуки в OpenCode V2</a><span class="lnk-desc">plugin-хуки домена <span class="mono">ctx.tool</span> (<span class="mono">execute.before</span>/<span class="mono">execute.after</span>) — родственный per-call перехват рядом с runtime-хуками Code Mode из этой заметки: разные API, общая идея аудита каждого вызова.</span></li>
+    <li><a href="06_opencode-worktree.md">06. Worktree в OpenCode V2</a><span class="lnk-desc">неймспейс <span class="mono">opencode</span>: инструменты <span class="mono">worktree_*</span> и <span class="mono">session_move</span> живут именно внутри Code Mode.</span></li>
+    <li><a href="03_opencode-architecture-config.md">03. Установка и настройка OpenCode V2</a><span class="lnk-desc">фон: исполнением инструментов владеет сервер, поэтому программа исполняется на стороне сервера, а не клиента.</span></li>
+    <li><a href="07_opencode-codemode.md">07. Code Mode в OpenCode V2</a><span class="lnk-desc">исходный Markdown этой HTML-версии.</span></li>
+  </ul>
+  <h3>Внешние</h3>
+  <ul>
+    <li><a href="https://opencode.ai/v2/docs/tools" target="_blank" rel="noopener" class="ext">Инструменты OpenCode V2, раздел «Execute»</a><span class="lnk-desc">инструмент <span class="mono">execute</span>, песочница, запрет с resource <span class="mono">*</span>, неймспейсы.</span></li>
+    <li><a href="https://github.com/anomalyco/opencode/blob/dev/packages/codemode/README.md" target="_blank" rel="noopener" class="ext">README пакета @opencode/codemode</a><span class="lnk-desc">интерпретатор подмножества JS, лимиты, аудит, runtime-хуки <span class="mono">tool.before</span>/<span class="mono">tool.after</span>.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/build/plugins/server" target="_blank" rel="noopener" class="ext">Server-плагины OpenCode V2</a><span class="lnk-desc">источник формулировки о стабильном снапшоте каталога на каждый модельный запрос.</span></li>
+    <li><a href="https://blog.cloudflare.com/code-mode/" target="_blank" rel="noopener" class="ext">Cloudflare: code mode</a><span class="lnk-desc">происхождение идеи: изолят-подход к агентным вызовам.</span></li>
+    <li><a href="https://opencode.ai/v2/docs/mcp-servers" target="_blank" rel="noopener" class="ext">MCP-серверы в V2</a><span class="lnk-desc">инструменты MCP через <span class="mono">execute</span> по умолчанию, <span class="mono">codemode: false</span>.</span></li>
+  </ul>
+</section>
+
+<footer>
+  HTML-версия материала <a class="mono" href="07_opencode-codemode.md">llm_harness/opencode_v2/07_opencode-codemode.md</a> · автономная страница со встроенными интерактивами · работает офлайн
+</footer>
+
+</main>
+
+<script>
+(function(){
+"use strict";
+
+/* ================================================================
+   ИНТЕРАКТИВ 1 · Лестница vs программа
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var TICK=950;
+  var TOTAL_A=11, TOTAL_B=4;
+  var shown=0, timer=null;
+
+  var rowsA=$("ldStageA").querySelectorAll("[data-req]");
+  var rowsB=$("ldStageB").querySelectorAll("[data-req]");
+  var chipsA=$("ldChipsA").querySelectorAll(".ld-chip");
+  var chipsB=$("ldChipsB").querySelectorAll(".ld-chip");
+
+  function applyAll(list){
+    for(var i=0;i<list.length;i++){
+      var req=parseInt(list[i].getAttribute("data-req"),10);
+      list[i].classList.toggle("on",req<=shown);
+    }
+  }
+  function plural(n,one,few,many){
+    var m10=n%10,m100=n%100;
+    if(m10===1&&m100!==11)return one;
+    if(m10>=2&&m10<=4&&(m100<12||m100>14))return few;
+    return many;
+  }
+  function verdict(){
+    var v=$("ldVerdict");
+    if(shown<=0){v.innerHTML="Готовы? Нажмите <b>Play</b> — оба режима начнут одновременно, и разница станет видна сама.";return;}
+    var a=Math.min(shown,TOTAL_A),b=Math.min(shown,TOTAL_B);
+    if(a<TOTAL_A&&b>=TOTAL_B){
+      var left=TOTAL_A-a;
+      v.innerHTML="Программа справа <b>уже вернула итог</b> (витков: 1) — а лестница слева всё ещё ходит: до конца ей осталось ещё "+left+" "+plural(left,"шаг","шага","шагов")+", и каждый пролёт — новый модельный запрос.";
+    }else if(a>=TOTAL_A){
+      v.innerHTML="Финал: одна и та же задача — <b>6 витков и 5 промежуточных значений в контексте</b> против <b>1 витка и одного итога</b>. Промежуточные значения программы в контекст модели не попадают.";
+    }else{
+      v.innerHTML="Слева лестница пошла вниз: каждый пролёт — отдельный модельный запрос, результат оседает в контексте. Справа модель уже написала одну программу — Code Mode исполняет её сейчас.";
+    }
+  }
+  function counters(){
+    var a=Math.min(shown,TOTAL_A);
+    var turns=Math.ceil(a/2), settled=Math.floor(a/2);
+    $("ldTurnsA").textContent=String(turns);
+    $("ldSettledA").textContent=String(settled);
+    $("ldTurnsA").classList.toggle("warned",turns>1);
+    $("ldSettledA").classList.toggle("warned",settled>0);
+    var tb=(shown>=1)?1:0;
+    $("ldTurnsB").textContent=String(tb);
+    $("ldSettledB").textContent="0";
+  }
+  function empties(){
+    var ea=$("ldEmptyA"),eb=$("ldEmptyB");
+    if(ea)ea.classList.toggle("hidden",shown>=2);
+    if(eb)eb.classList.toggle("hidden",shown>=4);
+  }
+  function render(){
+    applyAll(rowsA);applyAll(rowsB);applyAll(chipsA);applyAll(chipsB);
+    counters();empties();verdict();
+    var st=$("ldStageA");st.scrollTop=st.scrollHeight;
+    var sb=$("ldStageB");sb.scrollTop=sb.scrollHeight;
+  }
+  function stopPlay(){
+    if(timer){clearInterval(timer);timer=null;}
+    $("ldPlay").textContent="▶ Play";
+  }
+  function tick(){
+    if(shown>=TOTAL_A){stopPlay();return;}
+    shown++;render();
+    if(shown>=TOTAL_A)stopPlay();
+  }
+
+  $("ldPlay").addEventListener("click",function(){
+    if(timer){stopPlay();return;}
+    if(shown>=TOTAL_A){shown=0;render();}
+    $("ldPlay").textContent="⏸ Пауза";
+    timer=setInterval(tick,TICK);
+  });
+  $("ldStep").addEventListener("click",function(){stopPlay();tick();});
+  $("ldReset").addEventListener("click",function(){stopPlay();shown=0;render();});
+  render();
+})();
+
+/* ================================================================
+   ИНТЕРАКТИВ 2 · Песочница Code Mode: карта возможностей
+   ================================================================ */
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var denied=false;
+
+  var DETAILS={
+    fs:{t:"Файловая система — НЕТ",
+        d:"Без прямого доступа к файловой системе: программа не может напрямую трогать файлы. Песочница по построению — программа не изолируется после запуска, она <b>просто не имеет опасного</b>: файловых операций в языке нет, надстройка изоляции не нужна."},
+    imports:{t:"imports — НЕТ",
+        d:"Никаких imports и npm-пакетов: рантайм — <i>lightweight, pure interpreter for a JavaScript-like language</i>. Code Mode — не «запусти любой JavaScript», а «исполни только то, что реализовано»: только поддерживаемые API."},
+    timers:{t:"таймеры — НЕТ",
+        d:"Рантайм Code Mode — без таймеров, как и без прямого доступа к ФС и без imports. Все три «НЕТ» — одна и та же идея: отсутствие опасных возможностей в языке вместо изоляции поверх него."},
+    net:{t:"сеть — только fetch",
+        d:"Из внешнего мира у программы есть только <code>fetch</code>. Всё остальное внешнее — не напрямую, а через каталог инструментов: программы не могут напрямую трогать сеть (равно как ФС, процессы и API приложения)."},
+    tools:{t:"инструменты — через каталог",
+        d:"Вся совокупность инструментов доступна программе через неймспейсы каталога: <code>opencode</code> (служебные инструменты самого OpenCode: <code>session_rename</code>, <code>session_move</code>, <code>worktree_*</code>), <code>browser</code> (управление браузером desktop-приложения) и имена MCP-серверов."},
+    mcp:{t:"MCP — через execute по умолчанию",
+        d:"Инструменты MCP-серверов по умолчанию доступны агенту через <code>execute</code> под неймспейсом своего сервера. Настройка <code>codemode: false</code> выводит их наружу прямыми инструментами — тогда запрет <code>execute</code> их не заденет."},
+    limits:{t:"лимиты: timeoutMs · maxToolCalls · maxOutputBytes",
+        d:"Программа — ресурс ограниченный: <code>timeoutMs</code> (время), <code>maxToolCalls</code> (число вызовов инструментов), <code>maxOutputBytes</code> (размер вывода). Три планки на каждую программу."},
+    audit:{t:"аудит: лог toolCalls + search(...)",
+        d:"Аудит встроен: <code>toolCalls</code> хранит полный лог допущенных вызовов, а <code>search(...)</code> ищет по каталогу инструментов прямо из программы."}
+  };
+
+  var REMOVED={
+    t:"Удалено вместе с Code Mode",
+    base:"Запрет <code>execute</code> с resource <code>*</code> удаляет Code Mode <b>и все инструменты, достижимые только через него</b> — эта плитка была именно такой. Рантайма больше нет, нечего и исполнять.",
+    mcp:" Запрет их заденет только в конфигурации по умолчанию: настройка <code>codemode: false</code> выводит MCP-инструменты наружу прямыми."
+  };
+
+  function setDetail(t,d){
+    $("sbDT").innerHTML=t;
+    $("sbDD").innerHTML=d;
+  }
+  function clearActive(){
+    var tiles=$("sbGrid").querySelectorAll(".sb-tile");
+    for(var i=0;i<tiles.length;i++)tiles[i].classList.remove("active");
+  }
+  function defaultCard(){
+    clearActive();
+    if(denied){
+      setDetail("Code Mode удалён",
+        "На карте — только то, что было достижимо через <code>execute</code>. Правило одно: запрет <code>execute</code> с resource <code>*</code> удаляет Code Mode <b>и все инструменты, достижимые только через него</b> (механика permissions — заметка 04). Вне Code Mode осталось всё, что не требовало <code>execute</code>.");
+    }else{
+      setDetail("Кликните по плитке",
+        "Здесь появится пояснение: что означает категория и почему рантайм — «песочница по построению». Категории карты покрывают весь рантайм Code Mode: от отсутствия ФС и imports до лимитов и аудита вызовов.");
+    }
+  }
+
+  $("sbGrid").addEventListener("click",function(ev){
+    var t=ev.target.closest?ev.target.closest(".sb-tile"):null;
+    if(!t)return;
+    var id=t.getAttribute("data-id");
+    if(denied){
+      clearActive();
+      setDetail(REMOVED.t,REMOVED.base+(id==="mcp"?REMOVED.mcp:""));
+      return;
+    }
+    clearActive();t.classList.add("active");
+    setDetail(DETAILS[id].t,DETAILS[id].d);
+  });
+
+  $("sbDeny").addEventListener("click",function(){
+    denied=!denied;
+    $("sbCm").classList.toggle("denied",denied);
+    $("sbOutside").classList.toggle("hi",denied);
+    var b=$("sbDeny");
+    b.classList.toggle("danger-on",denied);
+    b.textContent=denied?"↺ Снять запрет":"🚫 Запретить execute с resource *";
+    $("sbCap").innerHTML=denied
+      ?"Code Mode удалён: с карты исчезло <b>всё достижимое только через него</b>; вне execute осталось нетронутым"
+      :"ножницы безопасности срабатывают <b>одним правилом</b> — попробуйте";
+    defaultCard();
+  });
+})();
+
+})();
+</script>
+</body>
+</html>
